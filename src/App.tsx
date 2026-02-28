@@ -3,6 +3,24 @@ import { useDeferredValue, useEffect, useEffectEvent, useRef, useState } from 'r
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import './App.css'
+import {
+  DEFAULT_MARGIN_MM,
+  DEFAULT_PAGE_PRESET,
+  DEFAULT_STYLE,
+  DEFAULT_THEME_PRESET,
+  PAGE_PRESETS,
+  THEME_PRESETS,
+  applyThemePreset as applyThemePresetToStyle,
+  buildPaperLayout,
+  buildPdfImagePlan,
+  clamp,
+  countWords,
+  isPaletteStyleKey,
+  type PagePresetKey,
+  type StyleState,
+  type ThemePresetKey,
+  type ThemeSelection,
+} from './lib/editor'
 
 const SAMPLE_MARKDOWN = `# Editorial Markdown
 
@@ -43,69 +61,6 @@ export function renderMarkdown(source: string) {
 You can use headings, lists, tables, fenced code blocks, blockquotes, and inline emphasis.
 `
 
-const DEFAULT_STYLE = {
-  fontSize: 17,
-  lineHeight: 1.65,
-  contentWidth: 760,
-  background: '#f7f1e3',
-  text: '#1f2329',
-  accent: '#c97342',
-}
-
-const DEFAULT_PAGE_PRESET = 'a4'
-const DEFAULT_THEME_PRESET = 'warm'
-const DEFAULT_MARGIN_MM = 12
-
-const PAGE_PRESETS = {
-  a4: {
-    label: 'A4',
-    pdfFormat: 'a4',
-    widthMm: 210,
-    heightMm: 297,
-  },
-  letter: {
-    label: 'Letter',
-    pdfFormat: 'letter',
-    widthMm: 215.9,
-    heightMm: 279.4,
-  },
-} as const
-
-const THEME_PRESETS = {
-  warm: {
-    label: 'Warm Editorial',
-    background: '#f7f1e3',
-    text: '#1f2329',
-    accent: '#c97342',
-  },
-  slate: {
-    label: 'Slate Room',
-    background: '#e8ecf3',
-    text: '#18212c',
-    accent: '#5271ff',
-  },
-  forest: {
-    label: 'Field Notes',
-    background: '#eef2e6',
-    text: '#1b2a22',
-    accent: '#3f7a57',
-  },
-  noir: {
-    label: 'Noir Print',
-    background: '#191613',
-    text: '#f5eadc',
-    accent: '#f2a65a',
-  },
-} as const
-
-const clamp = (value: number, min: number, max: number) =>
-  Math.min(Math.max(value, min), max)
-
-type StyleState = typeof DEFAULT_STYLE
-type PagePresetKey = keyof typeof PAGE_PRESETS
-type ThemePresetKey = keyof typeof THEME_PRESETS
-type ThemeSelection = ThemePresetKey | 'custom'
-
 function App() {
   const [markdown, setMarkdown] = useState(SAMPLE_MARKDOWN)
   const [splitRatio, setSplitRatio] = useState(0.42)
@@ -118,7 +73,7 @@ function App() {
   const workspaceRef = useRef<HTMLDivElement | null>(null)
   const previewSheetRef = useRef<HTMLDivElement | null>(null)
   const deferredMarkdown = useDeferredValue(markdown)
-  const words = markdown.trim().split(/\s+/).filter(Boolean).length
+  const words = countWords(markdown)
   const characters = markdown.length
   const activePagePreset = PAGE_PRESETS[pagePreset]
 
@@ -159,7 +114,7 @@ function App() {
   const updateStyle =
     <K extends keyof StyleState>(key: K) =>
     (value: StyleState[K]) => {
-      if (key === 'background' || key === 'text' || key === 'accent') {
+      if (isPaletteStyleKey(key)) {
         setThemePreset('custom')
       }
 
@@ -169,14 +124,9 @@ function App() {
       }))
     }
 
-  const applyThemePreset = (preset: ThemePresetKey) => {
+  const handleThemePresetSelect = (preset: ThemePresetKey) => {
     setThemePreset(preset)
-    setStyleState((current) => ({
-      ...current,
-      background: THEME_PRESETS[preset].background,
-      text: THEME_PRESETS[preset].text,
-      accent: THEME_PRESETS[preset].accent,
-    }))
+    setStyleState((current) => applyThemePresetToStyle(current, preset))
   }
 
   const resetAll = () => {
@@ -215,23 +165,30 @@ function App() {
 
       const pageWidth = pdf.internal.pageSize.getWidth()
       const pageHeight = pdf.internal.pageSize.getHeight()
-      const margin = marginMm
-      const printableWidth = pageWidth - margin * 2
-      const printableHeight = pageHeight - margin * 2
-      const renderedHeight = (canvas.height * printableWidth) / canvas.width
+      const plan = buildPdfImagePlan({
+        canvasWidthPx: canvas.width,
+        canvasHeightPx: canvas.height,
+        pageWidthMm: pageWidth,
+        pageHeightMm: pageHeight,
+        marginMm,
+      })
 
-      let heightLeft = renderedHeight
-      let offsetY = margin
+      plan.offsetsYMm.forEach((offsetY, index) => {
+        if (index > 0) {
+          pdf.addPage()
+        }
 
-      pdf.addImage(image, 'PNG', margin, offsetY, printableWidth, renderedHeight, undefined, 'FAST')
-      heightLeft -= printableHeight
-
-      while (heightLeft > 0) {
-        offsetY = heightLeft - renderedHeight + margin
-        pdf.addPage()
-        pdf.addImage(image, 'PNG', margin, offsetY, printableWidth, renderedHeight, undefined, 'FAST')
-        heightLeft -= printableHeight
-      }
+        pdf.addImage(
+          image,
+          'PNG',
+          plan.safeMarginMm,
+          offsetY,
+          plan.printableWidthMm,
+          plan.renderedHeightMm,
+          undefined,
+          'FAST',
+        )
+      })
 
       pdf.save('markdown-preview.pdf')
     } finally {
@@ -243,15 +200,17 @@ function App() {
     '--editor-width': `${splitRatio * 100}%`,
   } as CSSProperties
 
+  const paperLayout = buildPaperLayout(styleState, marginMm, pagePreset)
+
   const paperStyle = {
     '--page-background': styleState.background,
     '--page-text': styleState.text,
     '--page-accent': styleState.accent,
     '--page-font-size': `${styleState.fontSize}px`,
     '--page-line-height': styleState.lineHeight,
-    '--page-width': `${styleState.contentWidth}px`,
-    '--page-padding': `${(styleState.contentWidth * marginMm) / activePagePreset.widthMm}px`,
-    '--page-min-height': `${(styleState.contentWidth * activePagePreset.heightMm) / activePagePreset.widthMm}px`,
+    '--page-width': paperLayout.pageWidth,
+    '--page-padding': paperLayout.pagePadding,
+    '--page-min-height': paperLayout.pageMinHeight,
   } as CSSProperties
 
   const handleDividerKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
@@ -291,6 +250,7 @@ function App() {
                 Page
               </span>
               <select
+                aria-label="Page"
                 className="rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-sm text-[var(--chrome-text)] outline-none focus:ring-2 focus:ring-[var(--chrome-accent)]"
                 value={pagePreset}
                 onChange={(event) => setPagePreset(event.target.value as PagePresetKey)}
@@ -311,6 +271,7 @@ function App() {
                 Margin
               </span>
               <input
+                aria-label="Margin"
                 className="w-full accent-[var(--chrome-accent)]"
                 type="range"
                 min="8"
@@ -327,6 +288,7 @@ function App() {
                 Font
               </span>
               <input
+                aria-label="Font"
                 className="w-full accent-[var(--chrome-accent)]"
                 type="range"
                 min="14"
@@ -343,6 +305,7 @@ function App() {
                 Leading
               </span>
               <input
+                aria-label="Leading"
                 className="w-full accent-[var(--chrome-accent)]"
                 type="range"
                 min="1.3"
@@ -359,6 +322,7 @@ function App() {
                 Canvas
               </span>
               <input
+                aria-label="Canvas"
                 className="w-full accent-[var(--chrome-accent)]"
                 type="range"
                 min="620"
@@ -387,7 +351,7 @@ function App() {
                           : 'border-white/10 bg-black/15 text-[var(--chrome-text)] hover:border-white/20 hover:bg-white/8'
                       }`}
                       type="button"
-                      onClick={() => applyThemePreset(key as ThemePresetKey)}
+                      onClick={() => handleThemePresetSelect(key as ThemePresetKey)}
                     >
                       {preset.label}
                     </button>
@@ -404,6 +368,7 @@ function App() {
                 Paper
               </span>
               <input
+                aria-label="Paper"
                 className="h-9 w-11 cursor-pointer border-0 bg-transparent p-0"
                 type="color"
                 value={styleState.background}
@@ -416,6 +381,7 @@ function App() {
                 Text
               </span>
               <input
+                aria-label="Text"
                 className="h-9 w-11 cursor-pointer border-0 bg-transparent p-0"
                 type="color"
                 value={styleState.text}
@@ -428,6 +394,7 @@ function App() {
                 Accent
               </span>
               <input
+                aria-label="Accent"
                 className="h-9 w-11 cursor-pointer border-0 bg-transparent p-0"
                 type="color"
                 value={styleState.accent}
