@@ -1,7 +1,9 @@
 import type { CSSProperties, KeyboardEvent } from 'react'
 import { useDeferredValue, useEffect, useEffectEvent, useRef, useState } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
+import type { Previewer as PagedPreviewer } from 'pagedjs'
 import ReactMarkdown from 'react-markdown'
+import rehypeRaw from 'rehype-raw'
 import remarkGfm from 'remark-gfm'
 import './App.css'
 import {
@@ -24,6 +26,7 @@ import {
   clamp,
   countWords,
   isPaletteStyleKey,
+  prepareMarkdownForRender,
   type MarkdownActionKey,
   type PageChromeState,
   type PagePresetKey,
@@ -78,12 +81,14 @@ const controlFieldClass =
 const controlPanelClass =
   'grid gap-3 rounded-[1.25rem] border border-white/10 bg-white/[0.04] p-4 md:grid-cols-2 2xl:grid-cols-4'
 
-function DocumentContent({ markdown }: { markdown: string }) {
+export function DocumentContent({ markdown }: { markdown: string }) {
+  const renderedMarkdown = prepareMarkdownForRender(markdown)
+
   return (
     <div className="document-root">
       <article className="markdown-body">
-        <ReactMarkdown remarkPlugins={[remarkGfm]}>
-          {markdown || '*Start typing markdown to see the preview.*'}
+        <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]}>
+          {renderedMarkdown || '*Start typing markdown to see the preview.*'}
         </ReactMarkdown>
       </article>
     </div>
@@ -109,7 +114,7 @@ function App() {
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
   const pagedPreviewRef = useRef<HTMLDivElement | null>(null)
   const previewStageRef = useRef<HTMLDivElement | null>(null)
-  const previewerRef = useRef<{ polisher?: { destroy?: () => void } } | null>(null)
+  const previewerRef = useRef<PagedPreviewer | null>(null)
   const deferredMarkdown = useDeferredValue(debouncedMarkdown)
   const words = countWords(markdown)
   const characters = markdown.length
@@ -207,7 +212,7 @@ function App() {
 
     let cancelled = false
     let stagingContainer: HTMLDivElement | null = null
-    let previewer: { polisher?: { destroy?: () => void } } | null = null
+    let previewer: PagedPreviewer | null = null
     setIsPaginating(true)
     setPaginationError(null)
 

@@ -190,6 +190,25 @@ export const clamp = (value: number, min: number, max: number) =>
 export const countWords = (markdown: string) =>
   markdown.trim().split(/\s+/).filter(Boolean).length
 
+const UNDERLINE_PLACEHOLDER_PATTERN = /_{4,}/g
+const FENCED_CODE_BLOCK_PATTERN = /(```[\s\S]*?```|~~~[\s\S]*?~~~)/g
+
+export const prepareMarkdownForRender = (markdown: string) =>
+  markdown
+    .split(FENCED_CODE_BLOCK_PATTERN)
+    .map((segment) => {
+      if (/^(```|~~~)/.test(segment)) {
+        return segment
+      }
+
+      return segment.replace(UNDERLINE_PLACEHOLDER_PATTERN, (match) => {
+        const widthCh = Math.max(match.length, 4)
+
+        return `<span class="signature-line" aria-hidden="true" style="width: ${widthCh}ch"></span>`
+      })
+    })
+    .join('')
+
 export const isPaletteStyleKey = (
   key: keyof StyleState,
 ): key is (typeof PALETTE_STYLE_KEYS)[number] =>

@@ -109,8 +109,44 @@
   padding-left: 1.3rem;
 }
 
+.markdown-body ul {
+  list-style: disc;
+}
+
+.markdown-body ol {
+  list-style: decimal;
+}
+
+.markdown-body ul ul {
+  list-style: circle;
+}
+
+.markdown-body ul ul ul {
+  list-style: square;
+}
+
+.markdown-body ol ol {
+  list-style: lower-alpha;
+}
+
+.markdown-body ol ol ol {
+  list-style: lower-roman;
+}
+
+.markdown-body li {
+  display: list-item;
+}
+
 .markdown-body li + li {
   margin-top: 0.4rem;
+}
+
+.markdown-body .signature-line {
+  display: inline-block;
+  min-width: 4ch;
+  max-width: 100%;
+  vertical-align: -0.12em;
+  border-bottom: 1.5px solid currentColor;
 }
 
 .markdown-body code {

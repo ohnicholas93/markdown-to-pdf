@@ -7,6 +7,7 @@ import {
   buildPagedDocumentCss,
   countWords,
   isPaletteStyleKey,
+  prepareMarkdownForRender,
 } from '../src/lib/editor'
 
 describe('editor helpers', () => {
@@ -96,5 +97,16 @@ describe('editor helpers', () => {
 
     expect(bold.markdown).toBe('Hello **world**')
     expect(list.markdown).toBe('1. First\n2. Second')
+  })
+
+  test('prepares markdown for rendering signature lines without mutating code fences', () => {
+    const next = prepareMarkdownForRender(
+      `Tanda Tangan: ________\n\n\`\`\`txt\nkeep ________ literal\n\`\`\``,
+    )
+
+    expect(next).toContain(
+      '<span class="signature-line" aria-hidden="true" style="width: 8ch"></span>',
+    )
+    expect(next).toContain('```txt\nkeep ________ literal\n```')
   })
 })

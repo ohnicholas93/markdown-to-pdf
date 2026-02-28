@@ -2,7 +2,7 @@
 
 import { describe, expect, test } from 'bun:test'
 import { fireEvent, render, waitFor } from '@testing-library/react'
-import App from '../src/App'
+import App, { DocumentContent } from '../src/App'
 import { countWords } from '../src/lib/editor'
 
 describe('App', () => {
@@ -72,5 +72,20 @@ describe('App', () => {
 
     expect(editor.value).toBe('# Changed\n\nBody copy')
     expect(view.getByText(`${countWords(editor.value)} words`)).toBeInTheDocument()
+  })
+
+  test('renders markdown lists, raw html, and signature lines in the live preview', () => {
+    const view = render(
+      <DocumentContent
+        markdown={`1. First item\n2. Second item\n\n**Klien**\n<br />\nTanda Tangan: ____________`}
+      />,
+    )
+
+    expect(view.getByRole('list')).toBeInTheDocument()
+    expect(view.getAllByRole('listitem')).toHaveLength(2)
+    expect(view.container.querySelector('br')).not.toBeNull()
+    expect(view.container.querySelector('.signature-line')?.getAttribute('style')).toBe(
+      'width: 12ch;',
+    )
   })
 })
