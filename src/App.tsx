@@ -1,4 +1,4 @@
-import type { CSSProperties, KeyboardEvent } from 'react'
+import type { CSSProperties, ChangeEvent, KeyboardEvent, ReactNode } from 'react'
 import { memo, useDeferredValue, useEffect, useEffectEvent, useRef, useState } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import type { Previewer as PagedPreviewer } from 'pagedjs'
@@ -78,8 +78,47 @@ const controlLabelClass =
   'text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-[var(--chrome-muted)]'
 const controlFieldClass =
   'rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-sm text-[var(--chrome-text)] outline-none transition focus:border-[var(--chrome-accent)] focus:ring-2 focus:ring-[var(--chrome-accent)]/30'
+const controlSelectClass = `${controlFieldClass} w-full appearance-none pr-11`
 const controlPanelClass =
   'grid gap-3 rounded-[1.25rem] border border-white/10 bg-white/[0.04] p-4 md:grid-cols-2 2xl:grid-cols-4'
+
+function SelectField({
+  ariaLabel,
+  className,
+  value,
+  onChange,
+  children,
+}: {
+  ariaLabel: string
+  className?: string
+  value: string
+  onChange: (event: ChangeEvent<HTMLSelectElement>) => void
+  children: ReactNode
+}) {
+  return (
+    <div className={`relative ${className ?? ''}`}>
+      <select
+        aria-label={ariaLabel}
+        className={controlSelectClass}
+        value={value}
+        onChange={onChange}
+      >
+        {children}
+      </select>
+      <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-[var(--chrome-text)]/80">
+        <svg aria-hidden="true" className="h-4 w-4" viewBox="0 0 20 20" fill="none">
+          <path
+            d="m5 7 5 6 5-6"
+            stroke="currentColor"
+            strokeWidth="1.7"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
+      </span>
+    </div>
+  )
+}
 
 export function DocumentContent({ markdown }: { markdown: string }) {
   const renderedMarkdown = prepareMarkdownForRender(markdown)
@@ -581,7 +620,7 @@ function App() {
             >
               <div className="mx-auto grid max-w-[1600px] gap-3 rounded-[1.5rem] border border-white/10 bg-[linear-gradient(180deg,rgba(16,22,29,0.98),rgba(11,15,19,0.95))] p-3 shadow-[0_28px_80px_rgba(0,0,0,0.45)] backdrop-blur-xl">
                 <div className={controlPanelClass}>
-                <section className="grid gap-3 rounded-[1rem] border border-white/8 bg-black/15 p-3">
+                <section className="flex flex-col gap-3 rounded-[1rem] border border-white/8 bg-black/15 p-3">
                   <div>
                     <p className={controlLabelClass}>Document</p>
                     <h2 className="mt-1 text-base font-semibold text-[var(--chrome-text)]">
@@ -590,9 +629,8 @@ function App() {
                   </div>
                   <label className="grid gap-1.5">
                     <span className={controlLabelClass}>Page</span>
-                    <select
-                      aria-label="Page"
-                      className={controlFieldClass}
+                    <SelectField
+                      ariaLabel="Page"
                       value={pagePreset}
                       onChange={(event) => setPagePreset(event.target.value as PagePresetKey)}
                     >
@@ -601,7 +639,7 @@ function App() {
                           {preset.label}
                         </option>
                       ))}
-                    </select>
+                    </SelectField>
                   </label>
                   <label className="grid gap-1.5">
                     <span className={controlLabelClass}>Margin</span>
@@ -619,7 +657,7 @@ function App() {
                   </label>
                 </section>
 
-                <section className="grid gap-3 rounded-[1rem] border border-white/8 bg-black/15 p-3">
+                <section className="flex flex-col gap-3 rounded-[1rem] border border-white/8 bg-black/15 p-3">
                   <div>
                     <p className={controlLabelClass}>Typography</p>
                     <h2 className="mt-1 text-base font-semibold text-[var(--chrome-text)]">
@@ -628,9 +666,8 @@ function App() {
                   </div>
                   <label className="grid gap-1.5">
                     <span className={controlLabelClass}>Body font</span>
-                    <select
-                      aria-label="Body font"
-                      className={controlFieldClass}
+                    <SelectField
+                      ariaLabel="Body font"
                       value={styleState.fontFamily}
                       onChange={(event) =>
                         updateStyle('fontFamily')(event.target.value as StyleState['fontFamily'])
@@ -641,13 +678,12 @@ function App() {
                           {preset.label}
                         </option>
                       ))}
-                    </select>
+                    </SelectField>
                   </label>
                   <label className="grid gap-1.5">
                     <span className={controlLabelClass}>Heading font</span>
-                    <select
-                      aria-label="Heading font"
-                      className={controlFieldClass}
+                    <SelectField
+                      ariaLabel="Heading font"
                       value={styleState.headingFamily}
                       onChange={(event) =>
                         updateStyle('headingFamily')(
@@ -660,7 +696,7 @@ function App() {
                           {preset.label}
                         </option>
                       ))}
-                    </select>
+                    </SelectField>
                   </label>
                   <label className="grid gap-1.5">
                     <span className={controlLabelClass}>Font size</span>
@@ -720,24 +756,44 @@ function App() {
                   </label>
                 </section>
 
-                <section className="grid gap-3 rounded-[1rem] border border-white/8 bg-black/15 p-3">
+                <section className="flex flex-col gap-3 rounded-[1rem] border border-white/8 bg-black/15 p-3">
                   <div>
                     <p className={controlLabelClass}>Page chrome</p>
                     <h2 className="mt-1 text-base font-semibold text-[var(--chrome-text)]">
                       Running content
                     </h2>
                   </div>
-                  <div className="grid gap-2 md:grid-cols-[auto_minmax(0,1fr)_9rem]">
-                    <label className="flex items-center gap-2 text-sm font-semibold">
-                      <input
-                        aria-label="Show header"
-                        className="h-4 w-4 accent-[var(--chrome-accent)]"
-                        type="checkbox"
-                        checked={pageChrome.headerEnabled}
-                        onChange={(event) => updatePageChrome('headerEnabled')(event.target.checked)}
-                      />
-                      Header
-                    </label>
+                  <div className="flex flex-col gap-2 rounded-xl border border-white/8 bg-black/10 p-3">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                      <label className="flex items-center gap-2 text-sm font-semibold">
+                        <input
+                          aria-label="Show header"
+                          className="h-4 w-4 accent-[var(--chrome-accent)]"
+                          type="checkbox"
+                          checked={pageChrome.headerEnabled}
+                          onChange={(event) =>
+                            updatePageChrome('headerEnabled')(event.target.checked)
+                          }
+                        />
+                        Header
+                      </label>
+                      <SelectField
+                        ariaLabel="Header position"
+                        className="w-full sm:w-48"
+                        value={pageChrome.headerPosition}
+                        onChange={(event) =>
+                          updatePageChrome('headerPosition')(
+                            event.target.value as PageChromeState['headerPosition'],
+                          )
+                        }
+                      >
+                        {Object.entries(HEADER_POSITIONS).map(([key, label]) => (
+                          <option key={key} value={key}>
+                            {label}
+                          </option>
+                        ))}
+                      </SelectField>
+                    </div>
                     <input
                       aria-label="Header text"
                       className={controlFieldClass}
@@ -746,34 +802,38 @@ function App() {
                       value={pageChrome.headerText}
                       onChange={(event) => updatePageChrome('headerText')(event.target.value)}
                     />
-                    <select
-                      aria-label="Header position"
-                      className={controlFieldClass}
-                      value={pageChrome.headerPosition}
-                      onChange={(event) =>
-                        updatePageChrome('headerPosition')(
-                          event.target.value as PageChromeState['headerPosition'],
-                        )
-                      }
-                    >
-                      {Object.entries(HEADER_POSITIONS).map(([key, label]) => (
-                        <option key={key} value={key}>
-                          {label}
-                        </option>
-                      ))}
-                    </select>
                   </div>
-                  <div className="grid gap-2 md:grid-cols-[auto_minmax(0,1fr)_9rem]">
-                    <label className="flex items-center gap-2 text-sm font-semibold">
-                      <input
-                        aria-label="Show footer"
-                        className="h-4 w-4 accent-[var(--chrome-accent)]"
-                        type="checkbox"
-                        checked={pageChrome.footerEnabled}
-                        onChange={(event) => updatePageChrome('footerEnabled')(event.target.checked)}
-                      />
-                      Footer
-                    </label>
+                  <div className="flex flex-col gap-2 rounded-xl border border-white/8 bg-black/10 p-3">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                      <label className="flex items-center gap-2 text-sm font-semibold">
+                        <input
+                          aria-label="Show footer"
+                          className="h-4 w-4 accent-[var(--chrome-accent)]"
+                          type="checkbox"
+                          checked={pageChrome.footerEnabled}
+                          onChange={(event) =>
+                            updatePageChrome('footerEnabled')(event.target.checked)
+                          }
+                        />
+                        Footer
+                      </label>
+                      <SelectField
+                        ariaLabel="Footer position"
+                        className="w-full sm:w-48"
+                        value={pageChrome.footerPosition}
+                        onChange={(event) =>
+                          updatePageChrome('footerPosition')(
+                            event.target.value as PageChromeState['footerPosition'],
+                          )
+                        }
+                      >
+                        {Object.entries(FOOTER_POSITIONS).map(([key, label]) => (
+                          <option key={key} value={key}>
+                            {label}
+                          </option>
+                        ))}
+                      </SelectField>
+                    </div>
                     <input
                       aria-label="Footer text"
                       className={controlFieldClass}
@@ -782,56 +842,42 @@ function App() {
                       value={pageChrome.footerText}
                       onChange={(event) => updatePageChrome('footerText')(event.target.value)}
                     />
-                    <select
-                      aria-label="Footer position"
-                      className={controlFieldClass}
-                      value={pageChrome.footerPosition}
-                      onChange={(event) =>
-                        updatePageChrome('footerPosition')(
-                          event.target.value as PageChromeState['footerPosition'],
-                        )
-                      }
-                    >
-                      {Object.entries(FOOTER_POSITIONS).map(([key, label]) => (
-                        <option key={key} value={key}>
-                          {label}
-                        </option>
-                      ))}
-                    </select>
                   </div>
-                  <div className="grid gap-2 md:grid-cols-[auto_1fr]">
-                    <label className="flex items-center gap-2 text-sm font-semibold">
-                      <input
-                        aria-label="Show page numbers"
-                        className="h-4 w-4 accent-[var(--chrome-accent)]"
-                        type="checkbox"
-                        checked={pageChrome.pageNumbersEnabled}
+                  <div className="flex flex-col gap-2 rounded-xl border border-white/8 bg-black/10 p-3">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                      <label className="flex items-center gap-2 whitespace-nowrap text-sm font-semibold">
+                        <input
+                          aria-label="Show page numbers"
+                          className="h-4 w-4 accent-[var(--chrome-accent)]"
+                          type="checkbox"
+                          checked={pageChrome.pageNumbersEnabled}
+                          onChange={(event) =>
+                            updatePageChrome('pageNumbersEnabled')(event.target.checked)
+                          }
+                        />
+                        Page numbers
+                      </label>
+                      <SelectField
+                        ariaLabel="Page number position"
+                        className="w-full sm:w-48"
+                        value={pageChrome.pageNumberPosition}
                         onChange={(event) =>
-                          updatePageChrome('pageNumbersEnabled')(event.target.checked)
+                          updatePageChrome('pageNumberPosition')(
+                            event.target.value as PageChromeState['pageNumberPosition'],
+                          )
                         }
-                      />
-                      Page numbers
-                    </label>
-                    <select
-                      aria-label="Page number position"
-                      className={controlFieldClass}
-                      value={pageChrome.pageNumberPosition}
-                      onChange={(event) =>
-                        updatePageChrome('pageNumberPosition')(
-                          event.target.value as PageChromeState['pageNumberPosition'],
-                        )
-                      }
-                    >
-                      {Object.entries(PAGE_NUMBER_POSITIONS).map(([key, label]) => (
-                        <option key={key} value={key}>
-                          {label}
-                        </option>
-                      ))}
-                    </select>
+                      >
+                        {Object.entries(PAGE_NUMBER_POSITIONS).map(([key, label]) => (
+                          <option key={key} value={key}>
+                            {label}
+                          </option>
+                        ))}
+                      </SelectField>
+                    </div>
                   </div>
                 </section>
 
-                <section className="grid gap-3 rounded-[1rem] border border-white/8 bg-black/15 p-3">
+                <section className="flex flex-col gap-3 rounded-[1rem] border border-white/8 bg-black/15 p-3">
                   <div>
                     <p className={controlLabelClass}>Palette</p>
                     <h2 className="mt-1 text-base font-semibold text-[var(--chrome-text)]">
@@ -845,7 +891,7 @@ function App() {
                       return (
                         <button
                           key={key}
-                          className={`rounded-full border px-3 py-1.5 text-xs font-semibold tracking-[0.08em] transition ${
+                          className={`rounded-full border px-4 py-1 !text-sm font-semibold tracking-[0.08em] transition ${
                             isActive
                               ? 'border-transparent bg-[var(--chrome-accent)] text-[#14110f]'
                               : 'border-white/10 bg-black/15 text-[var(--chrome-text)] hover:border-white/20 hover:bg-white/8'
@@ -858,7 +904,7 @@ function App() {
                       )
                     })}
                   </div>
-                  <div className="grid gap-3 sm:grid-cols-3">
+                  <div className="mt-2 grid gap-3 sm:grid-cols-3">
                     <PaletteColorField
                       label="Paper"
                       ariaLabel="Paper"
