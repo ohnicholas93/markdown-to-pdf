@@ -1,42 +1,130 @@
-#root {
-  max-width: 1280px;
-  margin: 0 auto;
-  padding: 2rem;
-  text-align: center;
+.editor-pane {
+  width: 100%;
 }
 
-.logo {
-  height: 6em;
-  padding: 1.5em;
-  will-change: filter;
-  transition: filter 300ms;
-}
-.logo:hover {
-  filter: drop-shadow(0 0 2em #646cffaa);
-}
-.logo.react:hover {
-  filter: drop-shadow(0 0 2em #61dafbaa);
+.markdown-body {
+  font-size: var(--page-font-size);
+  line-height: var(--page-line-height);
+  color: var(--page-text);
 }
 
-@keyframes logo-spin {
-  from {
-    transform: rotate(0deg);
+.markdown-body > :first-child {
+  margin-top: 0;
+}
+
+.markdown-body > :last-child {
+  margin-bottom: 0;
+}
+
+.paper-surface {
+  width: min(100%, var(--page-width));
+  background: var(--page-background);
+  color: var(--page-text);
+}
+
+.markdown-body h1,
+.markdown-body h2,
+.markdown-body h3,
+.markdown-body h4 {
+  font-family: var(--font-display);
+  line-height: 1.1;
+  letter-spacing: -0.03em;
+  margin: 1.35em 0 0.55em;
+}
+
+.markdown-body h1 {
+  font-size: clamp(2.2rem, 4vw, 3.4rem);
+}
+
+.markdown-body h2 {
+  font-size: clamp(1.65rem, 2.8vw, 2.2rem);
+}
+
+.markdown-body h3 {
+  font-size: clamp(1.25rem, 2.2vw, 1.55rem);
+}
+
+.markdown-body p,
+.markdown-body ul,
+.markdown-body ol,
+.markdown-body blockquote,
+.markdown-body pre,
+.markdown-body table {
+  margin: 0 0 1.1em;
+}
+
+.markdown-body a {
+  color: var(--page-accent);
+}
+
+.markdown-body strong {
+  color: color-mix(in srgb, var(--page-text) 84%, var(--page-accent) 16%);
+}
+
+.markdown-body hr {
+  border: 0;
+  border-top: 1px solid color-mix(in srgb, var(--page-accent) 35%, #ffffff 35%);
+  margin: 2rem 0;
+}
+
+.markdown-body blockquote {
+  margin-left: 0;
+  padding: 0.4rem 0 0.4rem 1rem;
+  border-left: 3px solid var(--page-accent);
+  color: color-mix(in srgb, var(--page-text) 82%, #ffffff 18%);
+}
+
+.markdown-body ul,
+.markdown-body ol {
+  padding-left: 1.3rem;
+}
+
+.markdown-body li + li {
+  margin-top: 0.4rem;
+}
+
+.markdown-body code {
+  font-family: 'IBM Plex Mono', 'SFMono-Regular', Consolas, monospace;
+  font-size: 0.92em;
+  background: color-mix(in srgb, var(--page-accent) 10%, white 72%);
+  padding: 0.12rem 0.32rem;
+  border-radius: 0.35rem;
+}
+
+.markdown-body pre {
+  overflow: auto;
+  padding: 1rem 1.1rem;
+  border-radius: 1rem;
+  background: #201b19;
+  color: #f7f1e3;
+}
+
+.markdown-body pre code {
+  background: transparent;
+  color: inherit;
+  padding: 0;
+}
+
+.markdown-body table {
+  width: 100%;
+  border-collapse: collapse;
+  overflow: hidden;
+  border-radius: 1rem;
+}
+
+.markdown-body th,
+.markdown-body td {
+  padding: 0.75rem 0.85rem;
+  border: 1px solid color-mix(in srgb, var(--page-text) 12%, white 72%);
+  text-align: left;
+}
+
+.markdown-body th {
+  background: color-mix(in srgb, var(--page-accent) 12%, white 72%);
+}
+
+@media (min-width: 1024px) {
+  .editor-pane {
+    width: var(--editor-width);
   }
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-@media (prefers-reduced-motion: no-preference) {
-  a:nth-of-type(2) .logo {
-    animation: logo-spin infinite 20s linear;
-  }
-}
-
-.card {
-  padding: 2em;
-}
-
-.read-the-docs {
-  color: #888;
 }
