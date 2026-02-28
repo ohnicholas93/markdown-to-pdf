@@ -49,7 +49,31 @@ export const THEME_PRESETS = {
   },
 } as const
 
-export const BODY_FONT_PRESETS = {
+export const FONT_PRESETS = {
+  libre: {
+    label: 'Libre Baskerville',
+    family: "'Libre Baskerville', Georgia, serif",
+  },
+  ebgaramond: {
+    label: 'EB Garamond',
+    family: "'EB Garamond', Georgia, serif",
+  },
+  fraunces: {
+    label: 'Fraunces',
+    family: "'Fraunces', Georgia, serif",
+  },
+  dmserif: {
+    label: 'DM Serif Display',
+    family: "'DM Serif Display', Georgia, serif",
+  },
+  playfair: {
+    label: 'Playfair Display',
+    family: "'Playfair Display', Georgia, serif",
+  },
+  cormorant: {
+    label: 'Cormorant Garamond',
+    family: "'Cormorant Garamond', Georgia, serif",
+  },
   literata: {
     label: 'Literata',
     family: "'Literata', Georgia, serif",
@@ -96,32 +120,8 @@ export const BODY_FONT_PRESETS = {
   },
 } as const
 
-export const HEADING_FONT_PRESETS = {
-  libre: {
-    label: 'Libre Baskerville',
-    family: "'Libre Baskerville', Georgia, serif",
-  },
-  ebgaramond: {
-    label: 'EB Garamond',
-    family: "'EB Garamond', Georgia, serif",
-  },
-  fraunces: {
-    label: 'Fraunces',
-    family: "'Fraunces', Georgia, serif",
-  },
-  dmserif: {
-    label: 'DM Serif Display',
-    family: "'DM Serif Display', Georgia, serif",
-  },
-  playfair: {
-    label: 'Playfair Display',
-    family: "'Playfair Display', Georgia, serif",
-  },
-  cormorant: {
-    label: 'Cormorant Garamond',
-    family: "'Cormorant Garamond', Georgia, serif",
-  },
-} as const
+export const BODY_FONT_PRESETS = FONT_PRESETS
+export const HEADING_FONT_PRESETS = FONT_PRESETS
 
 export const HEADER_POSITIONS = {
   'top-left': 'Top left',
@@ -160,8 +160,9 @@ export const MARKDOWN_ACTIONS = [
 export type PagePresetKey = keyof typeof PAGE_PRESETS
 export type ThemePresetKey = keyof typeof THEME_PRESETS
 export type ThemeSelection = ThemePresetKey | 'custom'
-export type BodyFontPresetKey = keyof typeof BODY_FONT_PRESETS
-export type HeadingFontPresetKey = keyof typeof HEADING_FONT_PRESETS
+export type FontPresetKey = keyof typeof FONT_PRESETS
+export type BodyFontPresetKey = FontPresetKey
+export type HeadingFontPresetKey = FontPresetKey
 export type HeaderPosition = keyof typeof HEADER_POSITIONS
 export type FooterPosition = keyof typeof FOOTER_POSITIONS
 export type MarginBoxPosition = keyof typeof PAGE_NUMBER_POSITIONS

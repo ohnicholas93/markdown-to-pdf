@@ -523,6 +523,17 @@ function App() {
       : pageCount > 0
         ? `${pageCount} ${pageCount === 1 ? 'page' : 'pages'}`
         : 'Preview ready'
+  const previewDocumentStyle = {
+    '--page-background': styleState.background,
+    '--page-text': styleState.text,
+    '--page-accent': styleState.accent,
+    '--page-body-family': BODY_FONT_PRESETS[styleState.fontFamily].family,
+    '--page-heading-family': HEADING_FONT_PRESETS[styleState.headingFamily].family,
+    '--page-font-size': `${styleState.fontSize}px`,
+    '--page-line-height': String(styleState.lineHeight),
+    '--page-letter-spacing': `${styleState.letterSpacing}em`,
+    '--page-block-spacing': `${styleState.paragraphSpacing}rem`,
+  } as CSSProperties
 
   return (
     <div className="app-shell min-h-screen text-[var(--chrome-text)]">
@@ -987,7 +998,11 @@ function App() {
               </>
             ) : null}
 
-            <div className="preview-stage__canvas relative" ref={previewStageRef}>
+            <div
+              className="preview-stage__canvas relative"
+              ref={previewStageRef}
+              style={previewDocumentStyle}
+            >
               <div
                 className={`paged-preview transition-opacity duration-200 ${
                   isPaginating ? 'opacity-85' : 'opacity-100'

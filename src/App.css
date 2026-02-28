@@ -40,6 +40,15 @@
   overflow: hidden;
 }
 
+.paged-preview .document-root {
+  background: var(--page-background);
+  color: var(--page-text);
+  font-family: var(--page-body-family);
+  font-size: var(--page-font-size);
+  line-height: var(--page-line-height);
+  letter-spacing: var(--page-letter-spacing);
+}
+
 .markdown-body > :first-child {
   margin-top: 0;
 }
