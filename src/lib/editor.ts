@@ -189,6 +189,14 @@ export type PageChromeState = {
   pageNumbersEnabled: boolean
   pageNumberPosition: MarginBoxPosition
 }
+export type StylesetState = {
+  version: 1
+  themePreset: ThemeSelection
+  pagePreset: PagePresetKey
+  marginMm: number
+  style: StyleState
+  pageChrome: PageChromeState
+}
 export const PALETTE_STYLE_KEYS = ['background', 'text', 'accent'] as const
 
 export const DEFAULT_STYLE: StyleState = {
@@ -276,6 +284,139 @@ export const applyThemePreset = (
   text: THEME_PRESETS[preset].text,
   accent: THEME_PRESETS[preset].accent,
 })
+
+const COLOR_HEX_PATTERN = /^#[0-9a-f]{6}$/i
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null
+
+const isFiniteNumber = (value: unknown): value is number =>
+  typeof value === 'number' && Number.isFinite(value)
+
+const readString = (value: unknown, fallback: string) =>
+  typeof value === 'string' ? value : fallback
+
+const readBoolean = (value: unknown, fallback: boolean) =>
+  typeof value === 'boolean' ? value : fallback
+
+const readColor = (value: unknown, fallback: string) =>
+  typeof value === 'string' && COLOR_HEX_PATTERN.test(value) ? value : fallback
+
+const isPagePresetKey = (value: unknown): value is PagePresetKey =>
+  typeof value === 'string' && value in PAGE_PRESETS
+
+const isThemeSelection = (value: unknown): value is ThemeSelection =>
+  value === 'custom' || (typeof value === 'string' && value in THEME_PRESETS)
+
+const isFontPresetKey = (value: unknown): value is FontPresetKey =>
+  typeof value === 'string' && value in FONT_PRESETS
+
+const isHeaderPosition = (value: unknown): value is HeaderPosition =>
+  typeof value === 'string' && value in HEADER_POSITIONS
+
+const isFooterPosition = (value: unknown): value is FooterPosition =>
+  typeof value === 'string' && value in FOOTER_POSITIONS
+
+const isMarginBoxPosition = (value: unknown): value is MarginBoxPosition =>
+  typeof value === 'string' && value in PAGE_NUMBER_POSITIONS
+
+export const createStylesetState = ({
+  themePreset,
+  pagePreset,
+  marginMm,
+  style,
+  pageChrome,
+}: Omit<StylesetState, 'version'>): StylesetState => ({
+  version: 1,
+  themePreset,
+  pagePreset,
+  marginMm,
+  style: { ...style },
+  pageChrome: { ...pageChrome },
+})
+
+export const serializeStylesetState = (styleset: StylesetState) =>
+  JSON.stringify(styleset, null, 2)
+
+export const parseStylesetState = (input: string): StylesetState => {
+  const parsed = JSON.parse(input) as unknown
+
+  if (!isRecord(parsed) || parsed.version !== 1) {
+    throw new Error('Unsupported styleset file.')
+  }
+
+  const style = isRecord(parsed.style) ? parsed.style : {}
+  const pageChrome = isRecord(parsed.pageChrome) ? parsed.pageChrome : {}
+  const pagePreset = isPagePresetKey(parsed.pagePreset) ? parsed.pagePreset : DEFAULT_PAGE_PRESET
+  const preset = PAGE_PRESETS[pagePreset]
+
+  return createStylesetState({
+    themePreset: isThemeSelection(parsed.themePreset) ? parsed.themePreset : DEFAULT_THEME_PRESET,
+    pagePreset,
+    marginMm: clampMarginMm(
+      isFiniteNumber(parsed.marginMm) ? parsed.marginMm : DEFAULT_MARGIN_MM,
+      preset.widthMm,
+      preset.heightMm,
+    ),
+    style: {
+      fontFamily: isFontPresetKey(style.fontFamily) ? style.fontFamily : DEFAULT_STYLE.fontFamily,
+      headingFamily: isFontPresetKey(style.headingFamily)
+        ? style.headingFamily
+        : DEFAULT_STYLE.headingFamily,
+      bodyFontSize: clamp(
+        isFiniteNumber(style.bodyFontSize) ? style.bodyFontSize : DEFAULT_STYLE.bodyFontSize,
+        13,
+        24,
+      ),
+      headingBaseSize: clamp(
+        isFiniteNumber(style.headingBaseSize)
+          ? style.headingBaseSize
+          : DEFAULT_STYLE.headingBaseSize,
+        18,
+        36,
+      ),
+      lineHeight: clamp(
+        isFiniteNumber(style.lineHeight) ? style.lineHeight : DEFAULT_STYLE.lineHeight,
+        1.25,
+        2,
+      ),
+      paragraphSpacing: clamp(
+        isFiniteNumber(style.paragraphSpacing)
+          ? style.paragraphSpacing
+          : DEFAULT_STYLE.paragraphSpacing,
+        0.7,
+        1.7,
+      ),
+      letterSpacing: clamp(
+        isFiniteNumber(style.letterSpacing) ? style.letterSpacing : DEFAULT_STYLE.letterSpacing,
+        -0.02,
+        0.08,
+      ),
+      background: readColor(style.background, DEFAULT_STYLE.background),
+      text: readColor(style.text, DEFAULT_STYLE.text),
+      accent: readColor(style.accent, DEFAULT_STYLE.accent),
+    },
+    pageChrome: {
+      headerEnabled: readBoolean(pageChrome.headerEnabled, DEFAULT_PAGE_CHROME.headerEnabled),
+      headerText: readString(pageChrome.headerText, DEFAULT_PAGE_CHROME.headerText),
+      headerPosition: isHeaderPosition(pageChrome.headerPosition)
+        ? pageChrome.headerPosition
+        : DEFAULT_PAGE_CHROME.headerPosition,
+      footerEnabled: readBoolean(pageChrome.footerEnabled, DEFAULT_PAGE_CHROME.footerEnabled),
+      footerText: readString(pageChrome.footerText, DEFAULT_PAGE_CHROME.footerText),
+      footerPosition: isFooterPosition(pageChrome.footerPosition)
+        ? pageChrome.footerPosition
+        : DEFAULT_PAGE_CHROME.footerPosition,
+      pageNumbersEnabled: readBoolean(
+        pageChrome.pageNumbersEnabled,
+        DEFAULT_PAGE_CHROME.pageNumbersEnabled,
+      ),
+      pageNumberPosition: isMarginBoxPosition(pageChrome.pageNumberPosition)
+        ? pageChrome.pageNumberPosition
+        : DEFAULT_PAGE_CHROME.pageNumberPosition,
+    },
+  })
+}
 
 const clampMarginMm = (marginMm: number, pageWidthMm: number, pageHeightMm: number) => {
   const maxMargin = Math.max(8, Math.min(pageWidthMm, pageHeightMm) / 2 - 12)

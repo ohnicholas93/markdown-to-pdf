@@ -6,8 +6,15 @@ import App, { DocumentContent } from '../src/App'
 import { countWords } from '../src/lib/editor'
 
 describe('App', () => {
+  let createObjectURLMock: ReturnType<typeof vi.fn>
+  let revokeObjectURLMock: ReturnType<typeof vi.fn>
+
   beforeEach(() => {
     vi.useFakeTimers()
+    createObjectURLMock = vi.fn(() => 'blob:styleset')
+    revokeObjectURLMock = vi.fn()
+    URL.createObjectURL = createObjectURLMock
+    URL.revokeObjectURL = revokeObjectURLMock
   })
 
   afterEach(() => {
@@ -112,5 +119,100 @@ describe('App', () => {
     vi.advanceTimersByTime(1000)
 
     expect((view.getByLabelText('Paper') as HTMLInputElement).value).toBe('#e8ecf3')
+  })
+
+  test('exports the current styleset as JSON', async () => {
+    const view = render(<App />)
+
+    fireEvent.click(view.getByRole('button', { name: 'Document Settings' }))
+    fireEvent.click(view.getByRole('button', { name: 'Noir Print' }))
+    fireEvent.click(view.getByRole('button', { name: 'Export styleset' }))
+
+    await waitFor(() => expect(createObjectURLMock).toHaveBeenCalledTimes(1))
+
+    const [blob] = createObjectURLMock.mock.calls[0] as [Blob]
+    const exported = JSON.parse(await blob.text())
+
+    expect(exported.version).toBe(1)
+    expect(exported.themePreset).toBe('noir')
+    expect(exported.pagePreset).toBe('a4')
+    expect(exported.style.background).toBe('#191613')
+    expect(exported.pageChrome.pageNumbersEnabled).toBe(true)
+    expect(view.getByText('Styleset exported as JSON.')).toBeInTheDocument()
+    expect(revokeObjectURLMock).toHaveBeenCalledWith('blob:styleset')
+  })
+
+  test('imports a styleset JSON file', async () => {
+    const view = render(<App />)
+
+    fireEvent.click(view.getByRole('button', { name: 'Document Settings' }))
+
+    const file = new File(
+      [
+        JSON.stringify({
+          version: 1,
+          themePreset: 'custom',
+          pagePreset: 'legal',
+          marginMm: 24,
+          style: {
+            fontFamily: 'space',
+            headingFamily: 'playfair',
+            bodyFontSize: 19,
+            headingBaseSize: 31,
+            lineHeight: 1.8,
+            paragraphSpacing: 1.35,
+            letterSpacing: 0.02,
+            background: '#f4efe8',
+            text: '#221f1c',
+            accent: '#bf5b2c',
+          },
+          pageChrome: {
+            headerEnabled: true,
+            headerText: 'Imported Header',
+            headerPosition: 'top-left',
+            footerEnabled: true,
+            footerText: 'Imported Footer',
+            footerPosition: 'bottom-right',
+            pageNumbersEnabled: true,
+            pageNumberPosition: 'bottom-left',
+          },
+        }),
+      ],
+      'custom-styleset.json',
+      { type: 'application/json' },
+    )
+
+    fireEvent.change(view.getByLabelText('Import styleset JSON'), {
+      target: { files: [file] },
+    })
+
+    await waitFor(() => {
+      expect((view.getByLabelText('Page') as HTMLSelectElement).value).toBe('legal')
+    })
+
+    expect((view.getByLabelText('Margin') as HTMLInputElement).value).toBe('24')
+    expect((view.getByLabelText('Body font') as HTMLSelectElement).value).toBe('space')
+    expect((view.getByLabelText('Heading font') as HTMLSelectElement).value).toBe('playfair')
+    expect((view.getByLabelText('Paper') as HTMLInputElement).value).toBe('#f4efe8')
+    expect((view.getByLabelText('Header text') as HTMLInputElement).value).toBe('Imported Header')
+    expect(view.getByText('Imported styleset from custom-styleset.json.')).toBeInTheDocument()
+  })
+
+  test('shows an error when a styleset JSON file is invalid', async () => {
+    const view = render(<App />)
+
+    fireEvent.click(view.getByRole('button', { name: 'Document Settings' }))
+
+    const file = new File(['{"version":2}'], 'broken-styleset.json', {
+      type: 'application/json',
+    })
+
+    fireEvent.change(view.getByLabelText('Import styleset JSON'), {
+      target: { files: [file] },
+    })
+
+    await waitFor(() => {
+      expect(view.getByText('Could not import that styleset JSON file.')).toBeInTheDocument()
+    })
   })
 })

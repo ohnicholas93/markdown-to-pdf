@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import {
+  createStylesetState,
   DEFAULT_PAGE_CHROME,
   DEFAULT_STYLE,
   applyThemePreset,
@@ -7,7 +8,9 @@ import {
   buildPagedDocumentCss,
   countWords,
   isPaletteStyleKey,
+  parseStylesetState,
   prepareMarkdownForRender,
+  serializeStylesetState,
 } from '../src/lib/editor'
 
 describe('editor helpers', () => {
@@ -124,5 +127,40 @@ describe('editor helpers', () => {
       '<span class="signature-line" aria-hidden="true" style="width: 8ch"></span>',
     )
     expect(next).toContain('```txt\nkeep ________ literal\n```')
+  })
+
+  test('serializes and parses stylesets as JSON', () => {
+    const json = serializeStylesetState(
+      createStylesetState({
+        themePreset: 'noir',
+        pagePreset: 'legal',
+        marginMm: 24,
+        style: {
+          ...DEFAULT_STYLE,
+          fontFamily: 'space',
+          accent: '#f2a65a',
+        },
+        pageChrome: {
+          ...DEFAULT_PAGE_CHROME,
+          headerEnabled: true,
+          headerText: 'Draft',
+        },
+      }),
+    )
+
+    const parsed = parseStylesetState(json)
+
+    expect(parsed.version).toBe(1)
+    expect(parsed.themePreset).toBe('noir')
+    expect(parsed.pagePreset).toBe('legal')
+    expect(parsed.marginMm).toBe(24)
+    expect(parsed.style.fontFamily).toBe('space')
+    expect(parsed.style.accent).toBe('#f2a65a')
+    expect(parsed.pageChrome.headerEnabled).toBe(true)
+    expect(parsed.pageChrome.headerText).toBe('Draft')
+  })
+
+  test('rejects unsupported styleset versions', () => {
+    expect(() => parseStylesetState('{"version":2}')).toThrow('Unsupported styleset file.')
   })
 })

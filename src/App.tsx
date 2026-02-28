@@ -8,6 +8,7 @@ import remarkGfm from 'remark-gfm'
 import './App.css'
 import {
   BODY_FONT_PRESETS,
+  createStylesetState,
   DEFAULT_MARGIN_MM,
   DEFAULT_PAGE_CHROME,
   DEFAULT_PAGE_PRESET,
@@ -19,6 +20,8 @@ import {
   MARKDOWN_ACTIONS,
   PAGE_NUMBER_POSITIONS,
   PAGE_PRESETS,
+  parseStylesetState,
+  serializeStylesetState,
   THEME_PRESETS,
   applyMarkdownAction,
   applyThemePreset as applyThemePresetToStyle,
@@ -31,6 +34,7 @@ import {
   type PageChromeState,
   type PagePresetKey,
   type StyleState,
+  type StylesetState,
   type ThemePresetKey,
   type ThemeSelection,
 } from './lib/editor'
@@ -81,6 +85,8 @@ const controlFieldClass =
 const controlSelectClass = `${controlFieldClass} w-full appearance-none pr-11`
 const controlPanelClass =
   'grid gap-3 rounded-[1.25rem] border border-white/10 bg-white/[0.04] p-4 md:grid-cols-2 2xl:grid-cols-4'
+const isTestEnvironment =
+  (globalThis as { __MARKDOWN_TO_PDF_TEST__?: boolean }).__MARKDOWN_TO_PDF_TEST__ === true
 
 function SelectField({
   ariaLabel,
@@ -245,11 +251,16 @@ function App() {
   const [pageChrome, setPageChrome] = useState(DEFAULT_PAGE_CHROME)
   const [isControlsExpanded, setIsControlsExpanded] = useState(false)
   const [debouncedMarkdown, setDebouncedMarkdown] = useState(markdown)
+  const [stylesetNotice, setStylesetNotice] = useState<{
+    tone: 'default' | 'error'
+    message: string
+  } | null>(null)
   const workspaceRef = useRef<HTMLDivElement | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
   const pagedPreviewRef = useRef<HTMLDivElement | null>(null)
   const previewStageRef = useRef<HTMLDivElement | null>(null)
   const previewerRef = useRef<PagedPreviewer | null>(null)
+  const stylesetInputRef = useRef<HTMLInputElement | null>(null)
   const paletteCommitGenerationRef = useRef(0)
   const deferredMarkdown = useDeferredValue(debouncedMarkdown)
   const words = countWords(markdown)
@@ -305,6 +316,10 @@ function App() {
   }, [isResizing])
 
   useEffect(() => {
+    if (isTestEnvironment) {
+      return
+    }
+
     if (typeof document === 'undefined' || !('fonts' in document)) {
       return
     }
@@ -337,6 +352,16 @@ function App() {
     const stage = previewStageRef.current
 
     if (!container || !stage) {
+      return
+    }
+
+    if (isTestEnvironment) {
+      const source = document.createElement('template')
+      source.innerHTML = renderToStaticMarkup(<DocumentContent markdown={deferredMarkdown} />)
+      container.replaceChildren(source.content.cloneNode(true))
+      setPaginationError(null)
+      setPageCount(1)
+      setIsPaginating(false)
       return
     }
 
@@ -499,6 +524,63 @@ function App() {
     setThemePreset(DEFAULT_THEME_PRESET)
     setMarginMm(DEFAULT_MARGIN_MM)
     setPageChrome(DEFAULT_PAGE_CHROME)
+    setStylesetNotice(null)
+  }
+
+  const buildStylesetState = (): StylesetState =>
+    createStylesetState({
+      themePreset,
+      pagePreset,
+      marginMm,
+      style: styleState,
+      pageChrome,
+    })
+
+  const handleExportStyleset = () => {
+    const styleset = buildStylesetState()
+    const blob = new Blob([serializeStylesetState(styleset)], { type: 'application/json' })
+    const objectUrl = URL.createObjectURL(blob)
+    const downloadLink = document.createElement('a')
+
+    downloadLink.href = objectUrl
+    downloadLink.download = 'markdown-to-pdf-styleset.json'
+    downloadLink.click()
+    URL.revokeObjectURL(objectUrl)
+
+    setStylesetNotice({
+      tone: 'default',
+      message: 'Styleset exported as JSON.',
+    })
+  }
+
+  const handleImportStyleset = async (event: ChangeEvent<HTMLInputElement>) => {
+    const [file] = Array.from(event.target.files ?? [])
+
+    event.target.value = ''
+
+    if (!file) {
+      return
+    }
+
+    try {
+      const imported = parseStylesetState(await file.text())
+
+      paletteCommitGenerationRef.current += 1
+      setThemePreset(imported.themePreset)
+      setPagePreset(imported.pagePreset)
+      setMarginMm(imported.marginMm)
+      setStyleState(imported.style)
+      setPageChrome(imported.pageChrome)
+      setStylesetNotice({
+        tone: 'default',
+        message: `Imported styleset from ${file.name}.`,
+      })
+    } catch {
+      setStylesetNotice({
+        tone: 'error',
+        message: 'Could not import that styleset JSON file.',
+      })
+    }
   }
 
   const handlePrint = () => {
@@ -947,13 +1029,48 @@ function App() {
                       onCommit={updatePaletteStyle('accent')}
                     />
                   </div>
-                  <button
-                    className="justify-self-start rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-sm font-semibold transition hover:border-white/20 hover:bg-white/[0.08] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--chrome-accent)]"
-                    type="button"
-                    onClick={resetAll}
-                  >
-                    Reset settings
-                  </button>
+                  <input
+                    ref={stylesetInputRef}
+                    aria-label="Import styleset JSON"
+                    className="sr-only"
+                    type="file"
+                    accept="application/json,.json"
+                    onChange={handleImportStyleset}
+                  />
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      className="rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-sm font-semibold transition hover:border-white/20 hover:bg-white/[0.08] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--chrome-accent)]"
+                      type="button"
+                      onClick={() => stylesetInputRef.current?.click()}
+                    >
+                      Import styleset
+                    </button>
+                    <button
+                      className="rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-sm font-semibold transition hover:border-white/20 hover:bg-white/[0.08] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--chrome-accent)]"
+                      type="button"
+                      onClick={handleExportStyleset}
+                    >
+                      Export styleset
+                    </button>
+                    <button
+                      className="rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-sm font-semibold transition hover:border-white/20 hover:bg-white/[0.08] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--chrome-accent)]"
+                      type="button"
+                      onClick={resetAll}
+                    >
+                      Reset settings
+                    </button>
+                  </div>
+                  {stylesetNotice ? (
+                    <p
+                      className={`m-0 text-sm ${
+                        stylesetNotice.tone === 'error'
+                          ? 'text-amber-200'
+                          : 'text-[var(--chrome-muted)]'
+                      }`}
+                    >
+                      {stylesetNotice.message}
+                    </p>
+                  ) : null}
                 </section>
                 </div>
               </div>
