@@ -58,6 +58,17 @@ textarea {
   font: inherit;
 }
 
+select {
+  color-scheme: dark;
+}
+
+select,
+option,
+optgroup {
+  color: var(--chrome-text);
+  background-color: color-mix(in srgb, var(--chrome-surface) 92%, black 8%);
+}
+
 a {
   color: inherit;
 }

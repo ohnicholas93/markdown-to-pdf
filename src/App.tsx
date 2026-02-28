@@ -220,7 +220,7 @@ const PaletteColorField = memo(function PaletteColorField({
       <span className={controlLabelClass}>{label}</span>
       <input
         aria-label={ariaLabel}
-        className="h-11 w-full cursor-pointer rounded-xl border border-white/10 bg-black/20 p-1"
+        className="h-9 w-full cursor-pointer bg-black/20 p-0 -ml-0.5"
         ref={inputRef}
         type="color"
         value={draftValue}
