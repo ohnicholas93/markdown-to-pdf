@@ -17,6 +17,12 @@ export const PAGE_PRESETS = {
 } as const
 
 export const THEME_PRESETS = {
+  classic: {
+    label: 'Classic Print',
+    background: '#ffffff',
+    text: '#111111',
+    accent: '#111111',
+  },
   warm: {
     label: 'Warm Editorial',
     background: '#f7f1e3',
@@ -44,9 +50,41 @@ export const THEME_PRESETS = {
 } as const
 
 export const BODY_FONT_PRESETS = {
+  literata: {
+    label: 'Literata',
+    family: "'Literata', Georgia, serif",
+  },
+  spectral: {
+    label: 'Spectral',
+    family: "'Spectral', Georgia, serif",
+  },
+  crimson: {
+    label: 'Crimson Pro',
+    family: "'Crimson Pro', Georgia, serif",
+  },
+  lora: {
+    label: 'Lora',
+    family: "'Lora', Georgia, serif",
+  },
+  merriweather: {
+    label: 'Merriweather',
+    family: "'Merriweather', Georgia, serif",
+  },
   space: {
     label: 'Space Grotesk',
     family: "'Space Grotesk', 'Segoe UI', sans-serif",
+  },
+  manrope: {
+    label: 'Manrope',
+    family: "'Manrope', 'Segoe UI', sans-serif",
+  },
+  work: {
+    label: 'Work Sans',
+    family: "'Work Sans', 'Segoe UI', sans-serif",
+  },
+  dmsans: {
+    label: 'DM Sans',
+    family: "'DM Sans', 'Segoe UI', sans-serif",
   },
   plex: {
     label: 'IBM Plex Sans',
@@ -59,9 +97,21 @@ export const BODY_FONT_PRESETS = {
 } as const
 
 export const HEADING_FONT_PRESETS = {
+  libre: {
+    label: 'Libre Baskerville',
+    family: "'Libre Baskerville', Georgia, serif",
+  },
+  ebgaramond: {
+    label: 'EB Garamond',
+    family: "'EB Garamond', Georgia, serif",
+  },
   fraunces: {
     label: 'Fraunces',
     family: "'Fraunces', Georgia, serif",
+  },
+  dmserif: {
+    label: 'DM Serif Display',
+    family: "'DM Serif Display', Georgia, serif",
   },
   playfair: {
     label: 'Playfair Display',
@@ -140,19 +190,19 @@ export type PageChromeState = {
 export const PALETTE_STYLE_KEYS = ['background', 'text', 'accent'] as const
 
 export const DEFAULT_STYLE: StyleState = {
-  fontFamily: 'space',
-  headingFamily: 'fraunces',
+  fontFamily: 'literata',
+  headingFamily: 'libre',
   fontSize: 17,
   lineHeight: 1.65,
   paragraphSpacing: 1.1,
   letterSpacing: 0,
-  background: '#f7f1e3',
-  text: '#1f2329',
-  accent: '#c97342',
+  background: '#ffffff',
+  text: '#111111',
+  accent: '#111111',
 }
 
 export const DEFAULT_PAGE_PRESET: PagePresetKey = 'a4'
-export const DEFAULT_THEME_PRESET: ThemePresetKey = 'warm'
+export const DEFAULT_THEME_PRESET: ThemePresetKey = 'classic'
 export const DEFAULT_MARGIN_MM = 16
 export const DEFAULT_PAGE_CHROME: PageChromeState = {
   headerEnabled: false,

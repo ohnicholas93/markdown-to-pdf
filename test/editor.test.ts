@@ -66,6 +66,14 @@ describe('editor helpers', () => {
     expect(next.accent).toBe('#f2a65a')
   })
 
+  test('uses a black and white classic print style by default', () => {
+    expect(DEFAULT_STYLE.fontFamily).toBe('literata')
+    expect(DEFAULT_STYLE.headingFamily).toBe('libre')
+    expect(DEFAULT_STYLE.background).toBe('#ffffff')
+    expect(DEFAULT_STYLE.text).toBe('#111111')
+    expect(DEFAULT_STYLE.accent).toBe('#111111')
+  })
+
   test('flags only palette controls as custom-theme triggers', () => {
     expect(isPaletteStyleKey('background')).toBe(true)
     expect(isPaletteStyleKey('text')).toBe(true)

@@ -1,5 +1,5 @@
 import type { CSSProperties, KeyboardEvent } from 'react'
-import { useDeferredValue, useEffect, useEffectEvent, useRef, useState } from 'react'
+import { memo, useDeferredValue, useEffect, useEffectEvent, useRef, useState } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import type { Previewer as PagedPreviewer } from 'pagedjs'
 import ReactMarkdown from 'react-markdown'
@@ -95,6 +95,102 @@ export function DocumentContent({ markdown }: { markdown: string }) {
   )
 }
 
+const PaletteColorField = memo(function PaletteColorField({
+  label,
+  ariaLabel,
+  value,
+  commitGeneration,
+  onCommit,
+}: {
+  label: string
+  ariaLabel: string
+  value: string
+  commitGeneration: number
+  onCommit: (value: string, generation: number) => void
+}) {
+  const inputRef = useRef<HTMLInputElement | null>(null)
+  const [draftValue, setDraftValue] = useState(value)
+  const lastCommitAtRef = useRef(0)
+  const pendingCommitRef = useRef<number | null>(null)
+  const skipDraftCommitRef = useRef(false)
+
+  useEffect(() => {
+    if (pendingCommitRef.current !== null) {
+      window.clearTimeout(pendingCommitRef.current)
+      pendingCommitRef.current = null
+    }
+
+    skipDraftCommitRef.current = true
+    setDraftValue(value)
+  }, [value])
+
+  useEffect(() => {
+    const input = inputRef.current
+
+    if (!input) {
+      return
+    }
+
+    const handleNativeChange = () => {
+      if (pendingCommitRef.current !== null) {
+        window.clearTimeout(pendingCommitRef.current)
+        pendingCommitRef.current = null
+      }
+
+      lastCommitAtRef.current = Date.now()
+      onCommit(input.value, commitGeneration)
+    }
+
+    input.addEventListener('change', handleNativeChange)
+
+    return () => {
+      input.removeEventListener('change', handleNativeChange)
+    }
+  }, [onCommit])
+
+  useEffect(() => {
+    if (skipDraftCommitRef.current) {
+      skipDraftCommitRef.current = false
+      return
+    }
+
+    if (draftValue === value) {
+      return
+    }
+
+    const now = Date.now()
+    const elapsed = now - lastCommitAtRef.current
+    const remaining = Math.max(0, 1000 - elapsed)
+
+    pendingCommitRef.current = window.setTimeout(() => {
+      lastCommitAtRef.current = Date.now()
+      pendingCommitRef.current = null
+      onCommit(draftValue, commitGeneration)
+    }, remaining)
+
+    return () => {
+      if (pendingCommitRef.current !== null) {
+        window.clearTimeout(pendingCommitRef.current)
+        pendingCommitRef.current = null
+      }
+    }
+  }, [commitGeneration, draftValue, onCommit, value])
+
+  return (
+    <label className="grid gap-1.5">
+      <span className={controlLabelClass}>{label}</span>
+      <input
+        aria-label={ariaLabel}
+        className="h-11 w-full cursor-pointer rounded-xl border border-white/10 bg-black/20 p-1"
+        ref={inputRef}
+        type="color"
+        value={draftValue}
+        onInput={(event) => setDraftValue((event.target as HTMLInputElement).value)}
+      />
+    </label>
+  )
+})
+
 function App() {
   const [markdown, setMarkdown] = useState(SAMPLE_MARKDOWN)
   const [splitRatio, setSplitRatio] = useState(0.42)
@@ -115,6 +211,7 @@ function App() {
   const pagedPreviewRef = useRef<HTMLDivElement | null>(null)
   const previewStageRef = useRef<HTMLDivElement | null>(null)
   const previewerRef = useRef<PagedPreviewer | null>(null)
+  const paletteCommitGenerationRef = useRef(0)
   const deferredMarkdown = useDeferredValue(debouncedMarkdown)
   const words = countWords(markdown)
   const characters = markdown.length
@@ -337,12 +434,27 @@ function App() {
       }))
     }
 
+  const updatePaletteStyle =
+    (key: 'background' | 'text' | 'accent') => (value: string, generation: number) => {
+      if (generation !== paletteCommitGenerationRef.current) {
+        return
+      }
+
+      setThemePreset('custom')
+      setStyleState((current) => ({
+        ...current,
+        [key]: value,
+      }))
+    }
+
   const handleThemePresetSelect = (preset: ThemePresetKey) => {
+    paletteCommitGenerationRef.current += 1
     setThemePreset(preset)
     setStyleState((current) => applyThemePresetToStyle(current, preset))
   }
 
   const resetAll = () => {
+    paletteCommitGenerationRef.current += 1
     setStyleState(DEFAULT_STYLE)
     setPagePreset(DEFAULT_PAGE_PRESET)
     setThemePreset(DEFAULT_THEME_PRESET)
@@ -738,36 +850,27 @@ function App() {
                     })}
                   </div>
                   <div className="grid gap-3 sm:grid-cols-3">
-                    <label className="grid gap-1.5">
-                      <span className={controlLabelClass}>Paper</span>
-                      <input
-                        aria-label="Paper"
-                        className="h-11 w-full cursor-pointer rounded-xl border border-white/10 bg-black/20 p-1"
-                        type="color"
-                        value={styleState.background}
-                        onChange={(event) => updateStyle('background')(event.target.value)}
-                      />
-                    </label>
-                    <label className="grid gap-1.5">
-                      <span className={controlLabelClass}>Text</span>
-                      <input
-                        aria-label="Text"
-                        className="h-11 w-full cursor-pointer rounded-xl border border-white/10 bg-black/20 p-1"
-                        type="color"
-                        value={styleState.text}
-                        onChange={(event) => updateStyle('text')(event.target.value)}
-                      />
-                    </label>
-                    <label className="grid gap-1.5">
-                      <span className={controlLabelClass}>Accent</span>
-                      <input
-                        aria-label="Accent"
-                        className="h-11 w-full cursor-pointer rounded-xl border border-white/10 bg-black/20 p-1"
-                        type="color"
-                        value={styleState.accent}
-                        onChange={(event) => updateStyle('accent')(event.target.value)}
-                      />
-                    </label>
+                    <PaletteColorField
+                      label="Paper"
+                      ariaLabel="Paper"
+                      value={styleState.background}
+                      commitGeneration={paletteCommitGenerationRef.current}
+                      onCommit={updatePaletteStyle('background')}
+                    />
+                    <PaletteColorField
+                      label="Text"
+                      ariaLabel="Text"
+                      value={styleState.text}
+                      commitGeneration={paletteCommitGenerationRef.current}
+                      onCommit={updatePaletteStyle('text')}
+                    />
+                    <PaletteColorField
+                      label="Accent"
+                      ariaLabel="Accent"
+                      value={styleState.accent}
+                      commitGeneration={paletteCommitGenerationRef.current}
+                      onCommit={updatePaletteStyle('accent')}
+                    />
                   </div>
                   <button
                     className="justify-self-start rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-sm font-semibold transition hover:border-white/20 hover:bg-white/[0.08] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--chrome-accent)]"

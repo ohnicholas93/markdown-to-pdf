@@ -1,11 +1,19 @@
 /// <reference lib="dom" />
 
-import { describe, expect, test } from 'bun:test'
+import { afterEach, beforeEach, describe, expect, test, vi } from 'bun:test'
 import { fireEvent, render, waitFor } from '@testing-library/react'
 import App, { DocumentContent } from '../src/App'
 import { countWords } from '../src/lib/editor'
 
 describe('App', () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
   test('renders the default markdown preview and default stats', async () => {
     const originalConsoleError = console.error
     console.error = () => {}
@@ -87,5 +95,22 @@ describe('App', () => {
     expect(view.container.querySelector('.signature-line')?.getAttribute('style')).toBe(
       'width: 12ch;',
     )
+  })
+
+  test('theme selection is not overwritten by a throttled palette sync', () => {
+    const view = render(<App />)
+
+    fireEvent.click(view.getByRole('button', { name: 'Document Settings' }))
+
+    const paperInput = view.getByLabelText('Paper') as HTMLInputElement
+    fireEvent.input(paperInput, { target: { value: '#eeeeee' } })
+
+    fireEvent.click(view.getByRole('button', { name: 'Slate Room' }))
+
+    expect((view.getByLabelText('Paper') as HTMLInputElement).value).toBe('#e8ecf3')
+
+    vi.advanceTimersByTime(1000)
+
+    expect((view.getByLabelText('Paper') as HTMLInputElement).value).toBe('#e8ecf3')
   })
 })
