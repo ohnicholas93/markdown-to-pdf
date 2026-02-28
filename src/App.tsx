@@ -71,12 +71,12 @@ export function renderMarkdown(source: string) {
 You can use headings, lists, tables, fenced code blocks, blockquotes, and inline emphasis.
 `
 
-const controlCardClass =
-  'flex min-w-[8.75rem] flex-col gap-1.5 rounded-2xl border border-white/10 bg-white/[0.035] px-3.5 py-3'
 const controlLabelClass =
-  'text-[0.72rem] uppercase tracking-[0.14em] text-[var(--chrome-muted)]'
+  'text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-[var(--chrome-muted)]'
 const controlFieldClass =
-  'rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-sm text-[var(--chrome-text)] outline-none focus:ring-2 focus:ring-[var(--chrome-accent)]'
+  'rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-sm text-[var(--chrome-text)] outline-none transition focus:border-[var(--chrome-accent)] focus:ring-2 focus:ring-[var(--chrome-accent)]/30'
+const controlPanelClass =
+  'grid gap-3 rounded-[1.25rem] border border-white/10 bg-white/[0.04] p-4 md:grid-cols-2 2xl:grid-cols-4'
 
 function DocumentContent({ markdown }: { markdown: string }) {
   return (
@@ -103,11 +103,14 @@ function App() {
   const [themePreset, setThemePreset] = useState<ThemeSelection>(DEFAULT_THEME_PRESET)
   const [marginMm, setMarginMm] = useState(DEFAULT_MARGIN_MM)
   const [pageChrome, setPageChrome] = useState(DEFAULT_PAGE_CHROME)
+  const [isControlsExpanded, setIsControlsExpanded] = useState(false)
+  const [debouncedMarkdown, setDebouncedMarkdown] = useState(markdown)
   const workspaceRef = useRef<HTMLDivElement | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
   const pagedPreviewRef = useRef<HTMLDivElement | null>(null)
+  const previewStageRef = useRef<HTMLDivElement | null>(null)
   const previewerRef = useRef<{ polisher?: { destroy?: () => void } } | null>(null)
-  const deferredMarkdown = useDeferredValue(markdown)
+  const deferredMarkdown = useDeferredValue(debouncedMarkdown)
   const words = countWords(markdown)
   const characters = markdown.length
   const activePagePreset = PAGE_PRESETS[pagePreset]
@@ -127,6 +130,20 @@ function App() {
     document.body.style.cursor = ''
     document.body.style.userSelect = ''
   })
+
+  const syncEditorState = (nextValue: string) => {
+    setMarkdown(nextValue)
+  }
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setDebouncedMarkdown(markdown)
+    }, 220)
+
+    return () => {
+      window.clearTimeout(timer)
+    }
+  }, [markdown])
 
   useEffect(() => {
     if (!isResizing) {
@@ -176,32 +193,46 @@ function App() {
 
   useEffect(() => {
     const container = pagedPreviewRef.current
+    const stage = previewStageRef.current
 
-    if (!container) {
+    if (!container || !stage) {
       return
     }
 
+    const previousHeight = container.getBoundingClientRect().height
+
+    if (previousHeight > 0) {
+      container.style.minHeight = `${Math.ceil(previousHeight)}px`
+    }
+
     let cancelled = false
+    let stagingContainer: HTMLDivElement | null = null
+    let previewer: { polisher?: { destroy?: () => void } } | null = null
     setIsPaginating(true)
-    setPageCount(0)
     setPaginationError(null)
 
     const renderPagedPreview = async () => {
       try {
         const { Previewer } = await import('pagedjs')
 
-        if (cancelled) {
+        if (cancelled || !container.isConnected || !stage.isConnected) {
           return
         }
-
-        previewerRef.current?.polisher?.destroy?.()
-        container.replaceChildren()
 
         const source = document.createElement('template')
         source.innerHTML = renderToStaticMarkup(<DocumentContent markdown={deferredMarkdown} />)
 
-        const previewer = new Previewer()
-        previewerRef.current = previewer
+        stagingContainer = document.createElement('div')
+        stagingContainer.className = 'paged-preview paged-preview--staging'
+        stage.appendChild(stagingContainer)
+
+        if (cancelled || !stagingContainer.isConnected) {
+          stagingContainer.remove()
+          stagingContainer = null
+          return
+        }
+
+        previewer = new Previewer()
 
         const flow = await previewer.preview(
           source.content.cloneNode(true) as DocumentFragment,
@@ -215,14 +246,24 @@ function App() {
               }),
             },
           ],
-          container,
+          stagingContainer,
         )
 
-        if (cancelled) {
+        if (cancelled || !stagingContainer.isConnected || !container.isConnected) {
           previewer.polisher?.destroy?.()
+          stagingContainer.remove()
+          stagingContainer = null
+          previewer = null
           return
         }
 
+        const previousPreviewer = previewerRef.current
+        previewerRef.current = previewer
+        container.replaceChildren(...Array.from(stagingContainer.childNodes))
+        stagingContainer.remove()
+        stagingContainer = null
+        previewer = null
+        previousPreviewer?.polisher?.destroy?.()
         setPageCount(flow.total ?? container.querySelectorAll('.pagedjs_page').length)
       } catch (error) {
         if (cancelled) {
@@ -230,11 +271,20 @@ function App() {
         }
 
         console.error('Paged preview rendering failed.', error)
-        previewerRef.current = null
-        container.replaceChildren()
+        if (previewerRef.current !== previewer) {
+          previewer?.polisher?.destroy?.()
+          previewer = null
+        }
         setPaginationError('Paginated preview is unavailable in this session.')
       } finally {
+        if (previewerRef.current !== previewer) {
+          previewer?.polisher?.destroy?.()
+          previewer = null
+        }
+        stagingContainer?.remove()
+        stagingContainer = null
         if (!cancelled) {
+          container.style.minHeight = ''
           setIsPaginating(false)
         }
       }
@@ -244,11 +294,21 @@ function App() {
 
     return () => {
       cancelled = true
-      previewerRef.current?.polisher?.destroy?.()
-      previewerRef.current = null
-      container.replaceChildren()
+      if (previewerRef.current !== previewer) {
+        previewer?.polisher?.destroy?.()
+        previewer = null
+      }
+      stagingContainer?.remove()
+      stagingContainer = null
     }
   }, [deferredMarkdown, fontRenderVersion, marginMm, pageChrome, pagePreset, styleState])
+
+  useEffect(() => {
+    return () => {
+      previewerRef.current?.polisher?.destroy?.()
+      previewerRef.current = null
+    }
+  }, [])
 
   const updateStyle =
     <K extends keyof StyleState>(key: K) =>
@@ -312,403 +372,440 @@ function App() {
 
     const edit = applyMarkdownAction(
       {
-        markdown,
+        markdown: textarea.value,
         selectionStart: textarea.selectionStart,
         selectionEnd: textarea.selectionEnd,
       },
       action,
     )
 
-    setMarkdown(edit.markdown)
+    textarea.focus()
+    textarea.setRangeText(edit.markdown, 0, textarea.value.length, 'preserve')
+    textarea.setSelectionRange(edit.selectionStart, edit.selectionEnd)
+    syncEditorState(textarea.value)
+  }
 
-    requestAnimationFrame(() => {
-      const nextTextarea = textareaRef.current
+  const handleEditorInput = () => {
+    const textarea = textareaRef.current
 
-      if (!nextTextarea) {
-        return
-      }
+    if (!textarea) {
+      return
+    }
 
-      nextTextarea.focus()
-      nextTextarea.setSelectionRange(edit.selectionStart, edit.selectionEnd)
-    })
+    syncEditorState(textarea.value)
   }
 
   const workspaceStyle = {
     '--editor-width': `${splitRatio * 100}%`,
   } as CSSProperties
 
+  const previewStatus = paginationError
+    ? paginationError
+    : isPaginating
+      ? 'Updating preview'
+      : pageCount > 0
+        ? `${pageCount} ${pageCount === 1 ? 'page' : 'pages'}`
+        : 'Preview ready'
+
   return (
     <div className="app-shell min-h-screen text-[var(--chrome-text)]">
-      <header className="app-chrome sticky top-0 z-10 border-b border-white/10 bg-[linear-gradient(180deg,rgba(11,15,19,0.96),rgba(11,15,19,0.86)),var(--chrome-surface)] px-3 py-4 backdrop-blur-xl print:hidden sm:px-5">
-        <div className="grid gap-4 xl:grid-cols-[minmax(0,24rem)_1fr_auto] xl:items-start">
-          <div className="grid gap-1.5">
-            <p className="m-0 text-[0.7rem] uppercase tracking-[0.18em] text-[var(--chrome-accent)]">
-              Bun + Vite client-side print studio
-            </p>
-            <div>
-              <h1 className="m-0 font-[var(--font-display)] text-[clamp(1.7rem,1.3rem+1vw,2.4rem)] font-semibold tracking-[-0.03em]">
+      <header className="app-chrome sticky top-0 z-20 border-b border-white/10 bg-[linear-gradient(180deg,rgba(11,15,19,0.97),rgba(11,15,19,0.9)),var(--chrome-surface)] backdrop-blur-xl print:hidden">
+        <div className="relative mx-auto flex max-w-[1600px] flex-col gap-3 px-3 py-3 sm:px-5">
+          <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+            <div className="min-w-0">
+              <h1 className="m-0 font-[var(--font-display)] text-[clamp(1.4rem,1.1rem+0.8vw,2rem)] font-semibold tracking-[-0.03em]">
                 Markdown to PDF
               </h1>
-              <p className="mt-1 max-w-[42ch] text-sm text-[var(--chrome-muted)] sm:text-base">
-                Write markdown, paginate it as real pages, and print a clean PDF with browser-native rendering.
+              <p className="mt-1 max-w-[56ch] text-sm text-[var(--chrome-muted)] sm:text-[0.95rem]">
+                Write markdown, preview real pages, and export a clean browser-rendered PDF.
               </p>
             </div>
+
+            <div className="flex flex-wrap items-center gap-2 xl:justify-end">
+              <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-sm text-[var(--chrome-muted)]">
+                {activePagePreset.label}
+              </span>
+              <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-sm text-[var(--chrome-muted)]">
+                {previewStatus}
+              </span>
+              <button
+                className="rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-sm font-semibold transition hover:border-white/20 hover:bg-white/[0.08] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--chrome-accent)]"
+                type="button"
+                aria-expanded={isControlsExpanded}
+                aria-controls="document-settings"
+                onClick={() => setIsControlsExpanded((current) => !current)}
+              >
+                {isControlsExpanded ? 'Hide Settings' : 'Document Settings'}
+              </button>
+              <button
+                className="rounded-full border border-transparent bg-[var(--chrome-accent)] px-5 py-2.5 font-semibold text-[#14110f] shadow-[0_10px_24px_rgba(201,115,66,0.22)] transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60 disabled:transform-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--chrome-accent)]"
+                type="button"
+                onClick={handlePrint}
+                disabled={isPaginating || !!paginationError || pageCount === 0}
+              >
+                Print / Save PDF
+              </button>
+            </div>
           </div>
 
-          <div
-            aria-label="Document controls"
-            className="flex flex-wrap items-start gap-3 py-1"
-          >
-            <label className={controlCardClass}>
-              <span className={controlLabelClass}>Page</span>
-              <select
-                aria-label="Page"
-                className={controlFieldClass}
-                value={pagePreset}
-                onChange={(event) => setPagePreset(event.target.value as PagePresetKey)}
-              >
-                {Object.entries(PAGE_PRESETS).map(([key, preset]) => (
-                  <option key={key} value={key}>
-                    {preset.label}
-                  </option>
-                ))}
-              </select>
-              <strong className="text-sm font-semibold">
-                {activePagePreset.widthMm} x {activePagePreset.heightMm} mm
-              </strong>
-            </label>
-
-            <label className={controlCardClass}>
-              <span className={controlLabelClass}>Margin</span>
-              <input
-                aria-label="Margin"
-                className="w-full accent-[var(--chrome-accent)]"
-                type="range"
-                min="10"
-                max="28"
-                step="1"
-                value={marginMm}
-                onChange={(event) => setMarginMm(Number(event.target.value))}
-              />
-              <strong className="text-sm font-semibold">{marginMm}mm</strong>
-            </label>
-
-            <label className={controlCardClass}>
-              <span className={controlLabelClass}>Body font</span>
-              <select
-                aria-label="Body font"
-                className={controlFieldClass}
-                value={styleState.fontFamily}
-                onChange={(event) => updateStyle('fontFamily')(event.target.value as StyleState['fontFamily'])}
-              >
-                {Object.entries(BODY_FONT_PRESETS).map(([key, preset]) => (
-                  <option key={key} value={key}>
-                    {preset.label}
-                  </option>
-                ))}
-              </select>
-              <strong className="text-sm font-semibold">
-                {BODY_FONT_PRESETS[styleState.fontFamily].label}
-              </strong>
-            </label>
-
-            <label className={controlCardClass}>
-              <span className={controlLabelClass}>Heading font</span>
-              <select
-                aria-label="Heading font"
-                className={controlFieldClass}
-                value={styleState.headingFamily}
-                onChange={(event) =>
-                  updateStyle('headingFamily')(event.target.value as StyleState['headingFamily'])
-                }
-              >
-                {Object.entries(HEADING_FONT_PRESETS).map(([key, preset]) => (
-                  <option key={key} value={key}>
-                    {preset.label}
-                  </option>
-                ))}
-              </select>
-              <strong className="text-sm font-semibold">
-                {HEADING_FONT_PRESETS[styleState.headingFamily].label}
-              </strong>
-            </label>
-
-            <label className={controlCardClass}>
-              <span className={controlLabelClass}>Font size</span>
-              <input
-                aria-label="Font size"
-                className="w-full accent-[var(--chrome-accent)]"
-                type="range"
-                min="13"
-                max="24"
-                step="1"
-                value={styleState.fontSize}
-                onChange={(event) => updateStyle('fontSize')(Number(event.target.value))}
-              />
-              <strong className="text-sm font-semibold">{styleState.fontSize}px</strong>
-            </label>
-
-            <label className={controlCardClass}>
-              <span className={controlLabelClass}>Leading</span>
-              <input
-                aria-label="Leading"
-                className="w-full accent-[var(--chrome-accent)]"
-                type="range"
-                min="1.25"
-                max="2"
-                step="0.05"
-                value={styleState.lineHeight}
-                onChange={(event) => updateStyle('lineHeight')(Number(event.target.value))}
-              />
-              <strong className="text-sm font-semibold">{styleState.lineHeight.toFixed(2)}</strong>
-            </label>
-
-            <label className={controlCardClass}>
-              <span className={controlLabelClass}>Spacing</span>
-              <input
-                aria-label="Spacing"
-                className="w-full accent-[var(--chrome-accent)]"
-                type="range"
-                min="0.7"
-                max="1.7"
-                step="0.05"
-                value={styleState.paragraphSpacing}
-                onChange={(event) => updateStyle('paragraphSpacing')(Number(event.target.value))}
-              />
-              <strong className="text-sm font-semibold">
-                {styleState.paragraphSpacing.toFixed(2)}rem
-              </strong>
-            </label>
-
-            <label className={controlCardClass}>
-              <span className={controlLabelClass}>Tracking</span>
-              <input
-                aria-label="Tracking"
-                className="w-full accent-[var(--chrome-accent)]"
-                type="range"
-                min="-0.02"
-                max="0.08"
-                step="0.005"
-                value={styleState.letterSpacing}
-                onChange={(event) => updateStyle('letterSpacing')(Number(event.target.value))}
-              />
-              <strong className="text-sm font-semibold">{styleState.letterSpacing.toFixed(3)}em</strong>
-            </label>
-
-            <div className="flex min-w-[16rem] flex-col gap-2 rounded-2xl border border-white/10 bg-white/[0.035] px-3.5 py-3">
-              <span className={controlLabelClass}>Theme</span>
-              <div className="flex flex-wrap gap-2">
-                {Object.entries(THEME_PRESETS).map(([key, preset]) => {
-                  const isActive = themePreset === key
-
-                  return (
-                    <button
-                      key={key}
-                      className={`rounded-full border px-3 py-1.5 text-xs font-semibold tracking-[0.08em] transition ${
-                        isActive
-                          ? 'border-transparent bg-[var(--chrome-accent)] text-[#14110f]'
-                          : 'border-white/10 bg-black/15 text-[var(--chrome-text)] hover:border-white/20 hover:bg-white/8'
-                      }`}
-                      type="button"
-                      onClick={() => handleThemePresetSelect(key as ThemePresetKey)}
-                    >
-                      {preset.label}
-                    </button>
-                  )
-                })}
-              </div>
-              <strong className="text-sm font-semibold">
-                {themePreset === 'custom' ? 'Custom colors' : THEME_PRESETS[themePreset].label}
-              </strong>
-            </div>
-
-            <div className="flex min-w-[20rem] flex-col gap-3 rounded-2xl border border-white/10 bg-white/[0.035] px-3.5 py-3">
-              <div className="grid gap-2 md:grid-cols-[auto_minmax(0,1fr)_9rem]">
-                <label className="flex items-center gap-2 text-sm font-semibold">
-                  <input
-                    aria-label="Show header"
-                    className="h-4 w-4 accent-[var(--chrome-accent)]"
-                    type="checkbox"
-                    checked={pageChrome.headerEnabled}
-                    onChange={(event) => updatePageChrome('headerEnabled')(event.target.checked)}
-                  />
-                  Header
-                </label>
-                <input
-                  aria-label="Header text"
-                  className={controlFieldClass}
-                  placeholder="Optional running header"
-                  type="text"
-                  value={pageChrome.headerText}
-                  onChange={(event) => updatePageChrome('headerText')(event.target.value)}
-                />
-                <select
-                  aria-label="Header position"
-                  className={controlFieldClass}
-                  value={pageChrome.headerPosition}
-                  onChange={(event) =>
-                    updatePageChrome('headerPosition')(
-                      event.target.value as PageChromeState['headerPosition'],
-                    )
-                  }
-                >
-                  {Object.entries(HEADER_POSITIONS).map(([key, label]) => (
-                    <option key={key} value={key}>
-                      {label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="grid gap-2 md:grid-cols-[auto_minmax(0,1fr)_9rem]">
-                <label className="flex items-center gap-2 text-sm font-semibold">
-                  <input
-                    aria-label="Show footer"
-                    className="h-4 w-4 accent-[var(--chrome-accent)]"
-                    type="checkbox"
-                    checked={pageChrome.footerEnabled}
-                    onChange={(event) => updatePageChrome('footerEnabled')(event.target.checked)}
-                  />
-                  Footer
-                </label>
-                <input
-                  aria-label="Footer text"
-                  className={controlFieldClass}
-                  placeholder="Optional running footer"
-                  type="text"
-                  value={pageChrome.footerText}
-                  onChange={(event) => updatePageChrome('footerText')(event.target.value)}
-                />
-                <select
-                  aria-label="Footer position"
-                  className={controlFieldClass}
-                  value={pageChrome.footerPosition}
-                  onChange={(event) =>
-                    updatePageChrome('footerPosition')(
-                      event.target.value as PageChromeState['footerPosition'],
-                    )
-                  }
-                >
-                  {Object.entries(FOOTER_POSITIONS).map(([key, label]) => (
-                    <option key={key} value={key}>
-                      {label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="grid gap-2 md:grid-cols-[auto_1fr]">
-                <label className="flex items-center gap-2 text-sm font-semibold">
-                  <input
-                    aria-label="Show page numbers"
-                    className="h-4 w-4 accent-[var(--chrome-accent)]"
-                    type="checkbox"
-                    checked={pageChrome.pageNumbersEnabled}
-                    onChange={(event) =>
-                      updatePageChrome('pageNumbersEnabled')(event.target.checked)
-                    }
-                  />
-                  Page numbers
-                </label>
-                <select
-                  aria-label="Page number position"
-                  className={controlFieldClass}
-                  value={pageChrome.pageNumberPosition}
-                  onChange={(event) =>
-                    updatePageChrome('pageNumberPosition')(
-                      event.target.value as PageChromeState['pageNumberPosition'],
-                    )
-                  }
-                >
-                  {Object.entries(PAGE_NUMBER_POSITIONS).map(([key, label]) => (
-                    <option key={key} value={key}>
-                      {label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            <label className="flex gap-2 rounded-2xl border border-white/10 bg-white/[0.035] px-3.5 py-3">
-              <span className={controlLabelClass}>Paper</span>
-              <input
-                aria-label="Paper"
-                className="h-9 w-11 cursor-pointer border-0 bg-transparent p-0"
-                type="color"
-                value={styleState.background}
-                onChange={(event) => updateStyle('background')(event.target.value)}
-              />
-            </label>
-
-            <label className="flex gap-2 rounded-2xl border border-white/10 bg-white/[0.035] px-3.5 py-3">
-              <span className={controlLabelClass}>Text</span>
-              <input
-                aria-label="Text"
-                className="h-9 w-11 cursor-pointer border-0 bg-transparent p-0"
-                type="color"
-                value={styleState.text}
-                onChange={(event) => updateStyle('text')(event.target.value)}
-              />
-            </label>
-
-            <label className="flex gap-2 rounded-2xl border border-white/10 bg-white/[0.035] px-3.5 py-3">
-              <span className={controlLabelClass}>Accent</span>
-              <input
-                aria-label="Accent"
-                className="h-9 w-11 cursor-pointer border-0 bg-transparent p-0"
-                type="color"
-                value={styleState.accent}
-                onChange={(event) => updateStyle('accent')(event.target.value)}
-              />
-            </label>
-
-            <button
-              className="rounded-full border border-white/10 bg-white/[0.04] px-5 py-3 font-semibold transition duration-200 hover:-translate-y-0.5 hover:bg-white/[0.06] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--chrome-accent)]"
-              type="button"
-              onClick={resetAll}
+          {isControlsExpanded ? (
+            <div
+              id="document-settings"
+              className="absolute inset-x-3 top-[calc(100%+0.75rem)] z-30 sm:inset-x-5 sm:top-[calc(100%+1rem)]"
             >
-              Reset settings
-            </button>
-          </div>
+              <div className="mx-auto grid max-w-[1600px] gap-3 rounded-[1.5rem] border border-white/10 bg-[linear-gradient(180deg,rgba(16,22,29,0.98),rgba(11,15,19,0.95))] p-3 shadow-[0_28px_80px_rgba(0,0,0,0.45)] backdrop-blur-xl">
+                <div className={controlPanelClass}>
+                <section className="grid gap-3 rounded-[1rem] border border-white/8 bg-black/15 p-3">
+                  <div>
+                    <p className={controlLabelClass}>Document</p>
+                    <h2 className="mt-1 text-base font-semibold text-[var(--chrome-text)]">
+                      Page setup
+                    </h2>
+                  </div>
+                  <label className="grid gap-1.5">
+                    <span className={controlLabelClass}>Page</span>
+                    <select
+                      aria-label="Page"
+                      className={controlFieldClass}
+                      value={pagePreset}
+                      onChange={(event) => setPagePreset(event.target.value as PagePresetKey)}
+                    >
+                      {Object.entries(PAGE_PRESETS).map(([key, preset]) => (
+                        <option key={key} value={key}>
+                          {preset.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="grid gap-1.5">
+                    <span className={controlLabelClass}>Margin</span>
+                    <input
+                      aria-label="Margin"
+                      className="w-full accent-[var(--chrome-accent)]"
+                      type="range"
+                      min="10"
+                      max="28"
+                      step="1"
+                      value={marginMm}
+                      onChange={(event) => setMarginMm(Number(event.target.value))}
+                    />
+                    <span className="text-sm text-[var(--chrome-muted)]">{marginMm} mm</span>
+                  </label>
+                </section>
 
-          <button
-            className="justify-self-start rounded-full border border-transparent bg-[var(--chrome-accent)] px-5 py-3 font-semibold text-[#14110f] shadow-[0_14px_30px_rgba(201,115,66,0.28)] transition duration-200 hover:-translate-y-0.5 disabled:cursor-wait disabled:opacity-70 disabled:transform-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--chrome-accent)] xl:self-center xl:justify-self-end"
-            type="button"
-            onClick={handlePrint}
-            disabled={isPaginating || !!paginationError || pageCount === 0}
-          >
-            {isPaginating ? 'Paginating pages...' : 'Print / Save PDF'}
-          </button>
+                <section className="grid gap-3 rounded-[1rem] border border-white/8 bg-black/15 p-3">
+                  <div>
+                    <p className={controlLabelClass}>Typography</p>
+                    <h2 className="mt-1 text-base font-semibold text-[var(--chrome-text)]">
+                      Reading rhythm
+                    </h2>
+                  </div>
+                  <label className="grid gap-1.5">
+                    <span className={controlLabelClass}>Body font</span>
+                    <select
+                      aria-label="Body font"
+                      className={controlFieldClass}
+                      value={styleState.fontFamily}
+                      onChange={(event) =>
+                        updateStyle('fontFamily')(event.target.value as StyleState['fontFamily'])
+                      }
+                    >
+                      {Object.entries(BODY_FONT_PRESETS).map(([key, preset]) => (
+                        <option key={key} value={key}>
+                          {preset.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="grid gap-1.5">
+                    <span className={controlLabelClass}>Heading font</span>
+                    <select
+                      aria-label="Heading font"
+                      className={controlFieldClass}
+                      value={styleState.headingFamily}
+                      onChange={(event) =>
+                        updateStyle('headingFamily')(
+                          event.target.value as StyleState['headingFamily'],
+                        )
+                      }
+                    >
+                      {Object.entries(HEADING_FONT_PRESETS).map(([key, preset]) => (
+                        <option key={key} value={key}>
+                          {preset.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="grid gap-1.5">
+                    <span className={controlLabelClass}>Font size</span>
+                    <input
+                      aria-label="Font size"
+                      className="w-full accent-[var(--chrome-accent)]"
+                      type="range"
+                      min="13"
+                      max="24"
+                      step="1"
+                      value={styleState.fontSize}
+                      onChange={(event) => updateStyle('fontSize')(Number(event.target.value))}
+                    />
+                  </label>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <label className="grid gap-1.5">
+                      <span className={controlLabelClass}>Line height</span>
+                      <input
+                        aria-label="Leading"
+                        className="w-full accent-[var(--chrome-accent)]"
+                        type="range"
+                        min="1.25"
+                        max="2"
+                        step="0.05"
+                        value={styleState.lineHeight}
+                        onChange={(event) => updateStyle('lineHeight')(Number(event.target.value))}
+                      />
+                    </label>
+                    <label className="grid gap-1.5">
+                      <span className={controlLabelClass}>Paragraph space</span>
+                      <input
+                        aria-label="Spacing"
+                        className="w-full accent-[var(--chrome-accent)]"
+                        type="range"
+                        min="0.7"
+                        max="1.7"
+                        step="0.05"
+                        value={styleState.paragraphSpacing}
+                        onChange={(event) =>
+                          updateStyle('paragraphSpacing')(Number(event.target.value))
+                        }
+                      />
+                    </label>
+                  </div>
+                  <label className="grid gap-1.5">
+                    <span className={controlLabelClass}>Letter spacing</span>
+                    <input
+                      aria-label="Tracking"
+                      className="w-full accent-[var(--chrome-accent)]"
+                      type="range"
+                      min="-0.02"
+                      max="0.08"
+                      step="0.005"
+                      value={styleState.letterSpacing}
+                      onChange={(event) => updateStyle('letterSpacing')(Number(event.target.value))}
+                    />
+                  </label>
+                </section>
+
+                <section className="grid gap-3 rounded-[1rem] border border-white/8 bg-black/15 p-3">
+                  <div>
+                    <p className={controlLabelClass}>Page chrome</p>
+                    <h2 className="mt-1 text-base font-semibold text-[var(--chrome-text)]">
+                      Running content
+                    </h2>
+                  </div>
+                  <div className="grid gap-2 md:grid-cols-[auto_minmax(0,1fr)_9rem]">
+                    <label className="flex items-center gap-2 text-sm font-semibold">
+                      <input
+                        aria-label="Show header"
+                        className="h-4 w-4 accent-[var(--chrome-accent)]"
+                        type="checkbox"
+                        checked={pageChrome.headerEnabled}
+                        onChange={(event) => updatePageChrome('headerEnabled')(event.target.checked)}
+                      />
+                      Header
+                    </label>
+                    <input
+                      aria-label="Header text"
+                      className={controlFieldClass}
+                      placeholder="Optional running header"
+                      type="text"
+                      value={pageChrome.headerText}
+                      onChange={(event) => updatePageChrome('headerText')(event.target.value)}
+                    />
+                    <select
+                      aria-label="Header position"
+                      className={controlFieldClass}
+                      value={pageChrome.headerPosition}
+                      onChange={(event) =>
+                        updatePageChrome('headerPosition')(
+                          event.target.value as PageChromeState['headerPosition'],
+                        )
+                      }
+                    >
+                      {Object.entries(HEADER_POSITIONS).map(([key, label]) => (
+                        <option key={key} value={key}>
+                          {label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="grid gap-2 md:grid-cols-[auto_minmax(0,1fr)_9rem]">
+                    <label className="flex items-center gap-2 text-sm font-semibold">
+                      <input
+                        aria-label="Show footer"
+                        className="h-4 w-4 accent-[var(--chrome-accent)]"
+                        type="checkbox"
+                        checked={pageChrome.footerEnabled}
+                        onChange={(event) => updatePageChrome('footerEnabled')(event.target.checked)}
+                      />
+                      Footer
+                    </label>
+                    <input
+                      aria-label="Footer text"
+                      className={controlFieldClass}
+                      placeholder="Optional running footer"
+                      type="text"
+                      value={pageChrome.footerText}
+                      onChange={(event) => updatePageChrome('footerText')(event.target.value)}
+                    />
+                    <select
+                      aria-label="Footer position"
+                      className={controlFieldClass}
+                      value={pageChrome.footerPosition}
+                      onChange={(event) =>
+                        updatePageChrome('footerPosition')(
+                          event.target.value as PageChromeState['footerPosition'],
+                        )
+                      }
+                    >
+                      {Object.entries(FOOTER_POSITIONS).map(([key, label]) => (
+                        <option key={key} value={key}>
+                          {label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="grid gap-2 md:grid-cols-[auto_1fr]">
+                    <label className="flex items-center gap-2 text-sm font-semibold">
+                      <input
+                        aria-label="Show page numbers"
+                        className="h-4 w-4 accent-[var(--chrome-accent)]"
+                        type="checkbox"
+                        checked={pageChrome.pageNumbersEnabled}
+                        onChange={(event) =>
+                          updatePageChrome('pageNumbersEnabled')(event.target.checked)
+                        }
+                      />
+                      Page numbers
+                    </label>
+                    <select
+                      aria-label="Page number position"
+                      className={controlFieldClass}
+                      value={pageChrome.pageNumberPosition}
+                      onChange={(event) =>
+                        updatePageChrome('pageNumberPosition')(
+                          event.target.value as PageChromeState['pageNumberPosition'],
+                        )
+                      }
+                    >
+                      {Object.entries(PAGE_NUMBER_POSITIONS).map(([key, label]) => (
+                        <option key={key} value={key}>
+                          {label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </section>
+
+                <section className="grid gap-3 rounded-[1rem] border border-white/8 bg-black/15 p-3">
+                  <div>
+                    <p className={controlLabelClass}>Palette</p>
+                    <h2 className="mt-1 text-base font-semibold text-[var(--chrome-text)]">
+                      Theme and color
+                    </h2>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {Object.entries(THEME_PRESETS).map(([key, preset]) => {
+                      const isActive = themePreset === key
+
+                      return (
+                        <button
+                          key={key}
+                          className={`rounded-full border px-3 py-1.5 text-xs font-semibold tracking-[0.08em] transition ${
+                            isActive
+                              ? 'border-transparent bg-[var(--chrome-accent)] text-[#14110f]'
+                              : 'border-white/10 bg-black/15 text-[var(--chrome-text)] hover:border-white/20 hover:bg-white/8'
+                          }`}
+                          type="button"
+                          onClick={() => handleThemePresetSelect(key as ThemePresetKey)}
+                        >
+                          {preset.label}
+                        </button>
+                      )
+                    })}
+                  </div>
+                  <div className="grid gap-3 sm:grid-cols-3">
+                    <label className="grid gap-1.5">
+                      <span className={controlLabelClass}>Paper</span>
+                      <input
+                        aria-label="Paper"
+                        className="h-11 w-full cursor-pointer rounded-xl border border-white/10 bg-black/20 p-1"
+                        type="color"
+                        value={styleState.background}
+                        onChange={(event) => updateStyle('background')(event.target.value)}
+                      />
+                    </label>
+                    <label className="grid gap-1.5">
+                      <span className={controlLabelClass}>Text</span>
+                      <input
+                        aria-label="Text"
+                        className="h-11 w-full cursor-pointer rounded-xl border border-white/10 bg-black/20 p-1"
+                        type="color"
+                        value={styleState.text}
+                        onChange={(event) => updateStyle('text')(event.target.value)}
+                      />
+                    </label>
+                    <label className="grid gap-1.5">
+                      <span className={controlLabelClass}>Accent</span>
+                      <input
+                        aria-label="Accent"
+                        className="h-11 w-full cursor-pointer rounded-xl border border-white/10 bg-black/20 p-1"
+                        type="color"
+                        value={styleState.accent}
+                        onChange={(event) => updateStyle('accent')(event.target.value)}
+                      />
+                    </label>
+                  </div>
+                  <button
+                    className="justify-self-start rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-sm font-semibold transition hover:border-white/20 hover:bg-white/[0.08] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--chrome-accent)]"
+                    type="button"
+                    onClick={resetAll}
+                  >
+                    Reset settings
+                  </button>
+                </section>
+                </div>
+              </div>
+            </div>
+          ) : null}
         </div>
       </header>
 
       <main
-        className="workspace flex min-h-[calc(100vh-8rem)] flex-col gap-4 p-3 sm:p-5 lg:flex-row lg:gap-0"
+        className="workspace mx-auto flex min-h-[calc(100vh-5.5rem)] max-w-[1600px] flex-col gap-4 p-3 sm:p-5 lg:flex-row lg:gap-0"
         ref={workspaceRef}
         style={workspaceStyle}
       >
-        <section className="editor-pane grid min-h-[28rem] min-w-0 grid-rows-[auto_auto_1fr] overflow-hidden rounded-[1.4rem] border border-white/10 bg-[rgba(8,11,15,0.72)] backdrop-blur-xl print:hidden lg:rounded-r-none">
-          <div className="flex flex-col gap-4 border-b border-white/8 px-5 py-4 sm:flex-row sm:items-start sm:justify-between">
-            <div>
-              <p className="m-0 text-[0.7rem] uppercase tracking-[0.18em] text-[var(--chrome-accent)]">
-                Source
-              </p>
-              <h2 className="m-0 font-[var(--font-display)] text-[clamp(1.45rem,1.05rem+1vw,2rem)] font-semibold tracking-[-0.03em]">
-                Markdown
-              </h2>
+        <section className="editor-pane grid min-h-[28rem] min-w-0 grid-rows-[auto_1fr] overflow-hidden rounded-[1.4rem] border border-white/10 bg-[rgba(8,11,15,0.72)] backdrop-blur-xl print:hidden lg:rounded-r-none">
+          <div className="border-b border-white/8 px-5 py-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <h2 className="m-0 font-[var(--font-display)] text-[clamp(1.3rem,1rem+0.7vw,1.8rem)] font-semibold tracking-[-0.03em]">
+                  Markdown
+                </h2>
+                <p className="mt-1 text-sm text-[var(--chrome-muted)]">
+                  Edit the source and keep the preview in sync.
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2 sm:justify-end">
+                <span className="rounded-full bg-white/[0.05] px-3 py-1.5 text-sm text-[var(--chrome-muted)]">
+                  {words} words
+                </span>
+                <span className="rounded-full bg-white/[0.05] px-3 py-1.5 text-sm text-[var(--chrome-muted)]">
+                  {characters} characters
+                </span>
+              </div>
             </div>
-            <div className="flex flex-wrap gap-2 sm:justify-end">
-              <span className="rounded-full bg-white/[0.05] px-3 py-1.5 text-sm text-[var(--chrome-muted)]">
-                {words} words
-              </span>
-              <span className="rounded-full bg-white/[0.05] px-3 py-1.5 text-sm text-[var(--chrome-muted)]">
-                {characters} chars
-              </span>
-            </div>
-          </div>
 
-          <div className="border-b border-white/8 px-4 py-3">
-            <div className="flex flex-wrap gap-2">
+            <div className="mt-4 flex flex-wrap gap-2">
               {MARKDOWN_ACTIONS.map((action) => (
                 <button
                   key={action.key}
@@ -724,10 +821,10 @@ function App() {
 
           <textarea
             aria-label="Markdown editor"
-            className="min-h-0 w-full resize-none border-0 bg-transparent px-5 py-5 text-[0.98rem] leading-7 text-[#f3efe6] outline-none placeholder:text-white/35"
+            className="editor-input min-h-0 w-full resize-none border-0 bg-transparent px-5 py-5 text-[0.98rem] leading-7 text-[#f3efe6] outline-none placeholder:text-white/35"
             ref={textareaRef}
-            value={markdown}
-            onChange={(event) => setMarkdown(event.target.value)}
+            defaultValue={SAMPLE_MARKDOWN}
+            onInput={handleEditorInput}
             spellCheck={false}
           />
         </section>
@@ -745,45 +842,51 @@ function App() {
         </div>
 
         <section className="preview-pane flex min-h-[32rem] min-w-0 flex-1 flex-col overflow-hidden rounded-[1.4rem] border border-white/10 bg-[rgba(8,11,15,0.72)] backdrop-blur-xl lg:rounded-l-none lg:border-l-0 print:min-h-0 print:rounded-none print:border-0 print:bg-transparent">
-          <div className="preview-pane__header flex flex-col gap-4 border-b border-white/8 px-5 py-4 print:hidden sm:flex-row sm:items-start sm:justify-between">
-            <div>
-              <p className="m-0 text-[0.7rem] uppercase tracking-[0.18em] text-[var(--chrome-accent)]">
-                Output
-              </p>
-              <h2 className="m-0 font-[var(--font-display)] text-[clamp(1.45rem,1.05rem+1vw,2rem)] font-semibold tracking-[-0.03em]">
-                Paginated preview
-              </h2>
-            </div>
-            <div className="flex flex-wrap gap-2 sm:justify-end">
-              <span className="rounded-full bg-white/[0.05] px-3 py-1.5 text-sm text-[var(--chrome-muted)]">
-                Real print rendering
-              </span>
-              <span className="rounded-full bg-white/[0.05] px-3 py-1.5 text-sm text-[var(--chrome-muted)]">
-                {activePagePreset.label} layout
-              </span>
-              <span className="rounded-full bg-white/[0.05] px-3 py-1.5 text-sm text-[var(--chrome-muted)]">
-                {pageChrome.pageNumbersEnabled ? 'Page numbers on' : 'Page numbers off'}
-              </span>
-              <span className="rounded-full bg-white/[0.05] px-3 py-1.5 text-sm text-[var(--chrome-muted)]">
-                {isPaginating ? 'Paginating…' : pageCount > 0 ? `${pageCount} pages` : 'Preview ready'}
-              </span>
+          <div className="preview-pane__header border-b border-white/8 px-5 py-4 print:hidden">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <h2 className="m-0 font-[var(--font-display)] text-[clamp(1.3rem,1rem+0.7vw,1.8rem)] font-semibold tracking-[-0.03em]">
+                  Preview
+                </h2>
+                <p className="mt-1 text-sm text-[var(--chrome-muted)]">
+                  Final page layout, ready for print.
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2 sm:justify-end">
+                <span className="rounded-full bg-white/[0.05] px-3 py-1.5 text-sm text-[var(--chrome-muted)]">
+                  {activePagePreset.widthMm} × {activePagePreset.heightMm} mm
+                </span>
+                <span className="rounded-full bg-white/[0.05] px-3 py-1.5 text-sm text-[var(--chrome-muted)]">
+                  {previewStatus}
+                </span>
+              </div>
             </div>
           </div>
 
-          <div className="preview-stage min-h-0 overflow-auto bg-[radial-gradient(circle_at_top,rgba(201,115,66,0.1),transparent_38%),linear-gradient(180deg,rgba(255,255,255,0.02),rgba(255,255,255,0))] p-4 sm:p-6 print:overflow-visible print:bg-transparent print:p-0">
+          <div className="preview-stage relative min-h-0 overflow-auto bg-[radial-gradient(circle_at_top,rgba(201,115,66,0.1),transparent_38%),linear-gradient(180deg,rgba(255,255,255,0.02),rgba(255,255,255,0))] p-4 sm:p-6 print:overflow-visible print:bg-transparent print:p-0">
             {paginationError ? (
-              <p className="mb-4 rounded-2xl border border-amber-300/25 bg-amber-400/10 px-4 py-3 text-sm text-amber-100 print:hidden">
+              <div className="pointer-events-none absolute inset-x-4 top-4 z-[1] rounded-2xl border border-amber-300/25 bg-amber-400/12 px-4 py-3 text-sm text-amber-100 shadow-[0_10px_30px_rgba(0,0,0,0.22)] print:hidden sm:inset-x-6">
                 {paginationError} Reload the page to retry the paged renderer.
-              </p>
+              </div>
             ) : null}
 
-            {isPaginating ? (
-              <p className="mb-4 rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-[var(--chrome-muted)] print:hidden">
-                Building page layout...
-              </p>
+            {!paginationError && isPaginating ? (
+              <>
+                <div className="pointer-events-none absolute inset-0 z-[1] bg-black/8 opacity-100 transition-opacity duration-200 print:hidden" />
+                <div className="pointer-events-none absolute right-4 top-4 z-[2] rounded-full border border-white/10 bg-[rgba(11,15,19,0.8)] px-3 py-1.5 text-sm text-[var(--chrome-muted)] shadow-[0_10px_30px_rgba(0,0,0,0.22)] print:hidden sm:right-6">
+                  Updating preview
+                </div>
+              </>
             ) : null}
 
-            <div className="paged-preview" ref={pagedPreviewRef} />
+            <div className="preview-stage__canvas relative" ref={previewStageRef}>
+              <div
+                className={`paged-preview transition-opacity duration-200 ${
+                  isPaginating ? 'opacity-85' : 'opacity-100'
+                }`}
+                ref={pagedPreviewRef}
+              />
+            </div>
           </div>
         </section>
       </main>

@@ -14,22 +14,34 @@ describe('App', () => {
       const view = render(<App />)
       const editor = view.getByLabelText('Markdown editor') as HTMLTextAreaElement
 
-      expect(view.getByText('A4 layout')).toBeInTheDocument()
-      expect(view.getByText('Page numbers on')).toBeInTheDocument()
-      expect(view.getAllByText('Warm Editorial').length).toBeGreaterThan(0)
-      expect(view.getByRole('button', { name: /Print \/ Save PDF|Paginating pages/ })).toBeInTheDocument()
+      expect(view.getByText('Markdown to PDF')).toBeInTheDocument()
+      expect(view.getByRole('button', { name: 'Document Settings' })).toBeInTheDocument()
+      expect(view.getByRole('button', { name: 'Print / Save PDF' })).toBeInTheDocument()
       expect(view.getByRole('button', { name: 'Bold' })).toBeInTheDocument()
       expect(view.getByText(`${countWords(editor.value)} words`)).toBeInTheDocument()
+      expect(view.queryByText('Real print rendering')).toBeNull()
+      expect(view.queryByText('Bun + Vite client-side print studio')).toBeNull()
 
       await waitFor(() => {
         expect(
           view.queryByRole('heading', { name: 'Editorial Markdown' }) ??
-            view.queryByText(/Paginated preview is unavailable/),
+            view.queryAllByText(/Paginated preview is unavailable/)[0],
         ).toBeTruthy()
       })
     } finally {
       console.error = originalConsoleError
     }
+  })
+
+  test('keeps document settings collapsed until requested', () => {
+    const view = render(<App />)
+
+    expect(view.queryByLabelText('Page')).toBeNull()
+
+    fireEvent.click(view.getByRole('button', { name: 'Document Settings' }))
+
+    expect(view.getByLabelText('Page')).toBeInTheDocument()
+    expect(view.getByLabelText('Margin')).toBeInTheDocument()
   })
 
   test('supports keyboard resizing and clamps the split ratio', () => {
@@ -50,5 +62,15 @@ describe('App', () => {
     }
 
     expect(parseFloat(main.style.getPropertyValue('--editor-width'))).toBeCloseTo(28)
+  })
+
+  test('keeps the editor uncontrolled so native edits stay in sync', () => {
+    const view = render(<App />)
+    const editor = view.getByLabelText('Markdown editor') as HTMLTextAreaElement
+
+    fireEvent.input(editor, { target: { value: '# Changed\n\nBody copy' } })
+
+    expect(editor.value).toBe('# Changed\n\nBody copy')
+    expect(view.getByText(`${countWords(editor.value)} words`)).toBeInTheDocument()
   })
 })

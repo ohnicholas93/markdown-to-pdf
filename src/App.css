@@ -2,8 +2,26 @@
   width: 100%;
 }
 
+.editor-input,
+.preview-stage {
+  scrollbar-gutter: stable both-edges;
+}
+
 .paged-preview {
   min-height: 100%;
+}
+
+.preview-stage__canvas {
+  position: relative;
+  min-height: 100%;
+}
+
+.paged-preview--staging {
+  position: absolute;
+  inset: 0;
+  visibility: hidden;
+  pointer-events: none;
+  overflow: hidden;
 }
 
 .paged-preview .pagedjs_pages {
