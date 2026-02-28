@@ -573,15 +573,15 @@ function App() {
   } as CSSProperties
 
   return (
-    <div className="app-shell min-h-screen text-[var(--chrome-text)]">
+    <div className="app-shell min-h-screen text-[var(--chrome-text)] print:min-h-0">
       <header className="app-chrome sticky top-0 z-20 border-b border-white/10 bg-[linear-gradient(180deg,rgba(11,15,19,0.97),rgba(11,15,19,0.9)),var(--chrome-surface)] backdrop-blur-xl print:hidden">
-        <div className="relative mx-auto flex max-w-[1600px] flex-col gap-3 px-3 py-3 sm:px-5">
+        <div className="relative mx-auto flex max-w-[1600px] flex-col gap-3 px-6 py-4 sm:px-5">
           <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
             <div className="min-w-0">
               <h1 className="m-0 font-[var(--font-display)] text-[clamp(1.4rem,1.1rem+0.8vw,2rem)] font-semibold tracking-[-0.03em]">
                 Markdown to PDF
               </h1>
-              <p className="mt-1 max-w-[56ch] text-sm text-[var(--chrome-muted)] sm:text-[0.95rem]">
+              <p className="mt-0.5 max-w-[70ch] text-sm text-[var(--chrome-muted)] sm:text-[0.95rem]">
                 Write markdown, preview real pages, and export a clean browser-rendered PDF.
               </p>
             </div>
@@ -943,7 +943,7 @@ function App() {
       </header>
 
       <main
-        className="workspace mx-auto flex min-h-[calc(100vh-5.5rem)] max-w-[1600px] flex-col gap-4 p-3 sm:p-5 lg:flex-row lg:gap-0"
+        className="workspace mx-auto flex min-h-[calc(100vh-5.5rem)] max-w-[1600px] flex-col gap-4 p-3 sm:p-5 lg:flex-row lg:gap-0 print:min-h-0 print:max-w-none print:gap-0 print:p-0"
         ref={workspaceRef}
         style={workspaceStyle}
       >
@@ -1043,7 +1043,7 @@ function App() {
             ) : null}
 
             <div
-              className="preview-stage__canvas relative"
+              className="preview-stage__canvas relative print:min-h-0"
               ref={previewStageRef}
               style={previewDocumentStyle}
             >

@@ -211,6 +211,26 @@ button:not([disabled]) {
 }
 
 @media print {
+  @page {
+    margin: 0;
+  }
+
+  html,
+  body,
+  #root,
+  .app-shell,
+  .workspace,
+  .preview-pane,
+  .preview-stage,
+  .preview-stage__canvas,
+  .paged-preview {
+    margin: 0 !important;
+    padding: 0 !important;
+    min-height: 0 !important;
+    width: auto !important;
+    max-width: none !important;
+  }
+
   body::before {
     display: none;
   }
@@ -225,13 +245,27 @@ button:not([disabled]) {
 
   .preview-pane,
   .preview-stage,
+  .preview-stage__canvas,
   .paged-preview {
     overflow: visible !important;
     background: transparent !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+    border: 0 !important;
   }
 
   .paged-preview .pagedjs_pages {
+    display: block;
     gap: 0;
     padding-bottom: 0;
+    justify-content: initial;
+    align-content: initial;
+  }
+
+  .paged-preview .pagedjs_page,
+  .paged-preview .pagedjs_pagebox {
+    margin: 0 !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
   }
 }
