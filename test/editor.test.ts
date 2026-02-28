@@ -36,9 +36,11 @@ describe('editor helpers', () => {
         headerEnabled: true,
         headerText: 'Release Draft',
         headerPosition: 'top-left',
+        headerFontSizePt: 11,
         footerEnabled: true,
         footerText: 'Internal Use',
         footerPosition: 'bottom-center',
+        footerFontSizePt: 8,
       },
     })
 
@@ -46,13 +48,33 @@ describe('editor helpers', () => {
     expect(css).toContain('size: 215.9mm 279.4mm;')
     expect(css).toContain('@top-left')
     expect(css).toContain('"Release Draft"')
+    expect(css).toContain('font-size: 11pt;')
     expect(css).toContain('@bottom-center')
     expect(css).toContain('"Internal Use"')
+    expect(css).toContain('font-size: 8pt;')
     expect(css).toContain('counter(page)')
     expect(css).toContain("font-family: 'Source Serif 4'")
     expect(css).toContain("font-family: 'Playfair Display'")
     expect(css).toContain('letter-spacing: 0.015em;')
     expect(css).toContain('print-color-adjust: exact;')
+  })
+
+  test('uses the footer size for page numbers', () => {
+    const css = buildPagedDocumentCss({
+      style: DEFAULT_STYLE,
+      pagePreset: 'a4',
+      marginMm: 16,
+      chrome: {
+        ...DEFAULT_PAGE_CHROME,
+        footerFontSizePt: 12,
+        pageNumbersEnabled: true,
+        pageNumberPosition: 'top-right',
+      },
+    })
+
+    expect(css).toContain('@top-right')
+    expect(css).toContain('"Page " counter(page)')
+    expect(css).toContain('font-size: 12pt;')
   })
 
   test('applies theme presets without touching typography settings', () => {
@@ -144,6 +166,7 @@ describe('editor helpers', () => {
           ...DEFAULT_PAGE_CHROME,
           headerEnabled: true,
           headerText: 'Draft',
+          headerFontSizePt: 12,
         },
       }),
     )
@@ -158,6 +181,7 @@ describe('editor helpers', () => {
     expect(parsed.style.accent).toBe('#f2a65a')
     expect(parsed.pageChrome.headerEnabled).toBe(true)
     expect(parsed.pageChrome.headerText).toBe('Draft')
+    expect(parsed.pageChrome.headerFontSizePt).toBe(12)
   })
 
   test('rejects unsupported styleset versions', () => {

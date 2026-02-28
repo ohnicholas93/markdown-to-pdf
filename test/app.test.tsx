@@ -123,9 +123,52 @@ describe('App', () => {
 
   test('exports the current styleset as JSON', async () => {
     const view = render(<App />)
+    const file = new File(
+      [
+        JSON.stringify({
+          version: 1,
+          themePreset: 'noir',
+          pagePreset: 'a4',
+          marginMm: 16,
+          style: {
+            background: '#191613',
+            text: '#f5eadc',
+            accent: '#f2a65a',
+            fontFamily: 'literata',
+            headingFamily: 'libre',
+            bodyFontSize: 16,
+            headingBaseSize: 22,
+            lineHeight: 1.65,
+            paragraphSpacing: 1.1,
+            letterSpacing: 0,
+          },
+          pageChrome: {
+            headerEnabled: false,
+            headerText: '',
+            headerPosition: 'top-center',
+            headerFontSizePt: 12,
+            footerEnabled: false,
+            footerText: '',
+            footerPosition: 'bottom-center',
+            footerFontSizePt: 8,
+            pageNumbersEnabled: true,
+            pageNumberPosition: 'bottom-right',
+          },
+        }),
+      ],
+      'export-source.json',
+      { type: 'application/json' },
+    )
 
     fireEvent.click(view.getByRole('button', { name: 'Document Settings' }))
-    fireEvent.click(view.getByRole('button', { name: 'Noir Print' }))
+    fireEvent.change(view.getByLabelText('Import styleset JSON'), {
+      target: { files: [file] },
+    })
+
+    await waitFor(() => {
+      expect((view.getByLabelText('Header size') as HTMLInputElement).value).toBe('12')
+    })
+
     fireEvent.click(view.getByRole('button', { name: 'Export styleset' }))
 
     await waitFor(() => expect(createObjectURLMock).toHaveBeenCalledTimes(1))
@@ -137,6 +180,8 @@ describe('App', () => {
     expect(exported.themePreset).toBe('noir')
     expect(exported.pagePreset).toBe('a4')
     expect(exported.style.background).toBe('#191613')
+    expect(exported.pageChrome.headerFontSizePt).toBe(12)
+    expect(exported.pageChrome.footerFontSizePt).toBe(8)
     expect(exported.pageChrome.pageNumbersEnabled).toBe(true)
     expect(view.getByText('Styleset exported as JSON.')).toBeInTheDocument()
     expect(revokeObjectURLMock).toHaveBeenCalledWith('blob:styleset')
@@ -170,9 +215,11 @@ describe('App', () => {
             headerEnabled: true,
             headerText: 'Imported Header',
             headerPosition: 'top-left',
+            headerFontSizePt: 13,
             footerEnabled: true,
             footerText: 'Imported Footer',
             footerPosition: 'bottom-right',
+            footerFontSizePt: 10,
             pageNumbersEnabled: true,
             pageNumberPosition: 'bottom-left',
           },
@@ -195,6 +242,8 @@ describe('App', () => {
     expect((view.getByLabelText('Heading font') as HTMLSelectElement).value).toBe('playfair')
     expect((view.getByLabelText('Paper') as HTMLInputElement).value).toBe('#f4efe8')
     expect((view.getByLabelText('Header text') as HTMLInputElement).value).toBe('Imported Header')
+    expect((view.getByLabelText('Header size') as HTMLInputElement).value).toBe('13')
+    expect((view.getByLabelText('Footer size') as HTMLInputElement).value).toBe('10')
     expect(view.getByText('Imported styleset from custom-styleset.json.')).toBeInTheDocument()
   })
 

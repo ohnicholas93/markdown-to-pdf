@@ -9,6 +9,8 @@ import './App.css'
 import {
   BODY_FONT_PRESETS,
   createStylesetState,
+  MAX_CHROME_FONT_SIZE_PT,
+  MIN_CHROME_FONT_SIZE_PT,
   DEFAULT_MARGIN_MM,
   DEFAULT_PAGE_CHROME,
   DEFAULT_PAGE_PRESET,
@@ -796,6 +798,9 @@ function App() {
                           updateStyle('bodyFontSize')(Number(event.target.value))
                         }
                       />
+                      <span className="text-sm text-[var(--chrome-muted)]">
+                        {styleState.bodyFontSize} pt
+                      </span>
                     </label>
                     <label className="grid gap-1.5">
                       <span className={controlLabelClass}>Heading size</span>
@@ -811,6 +816,9 @@ function App() {
                           updateStyle('headingBaseSize')(Number(event.target.value))
                         }
                       />
+                      <span className="text-sm text-[var(--chrome-muted)]">
+                        {styleState.headingBaseSize} pt
+                      </span>
                     </label>
                   </div>
                   <div className="grid gap-3 sm:grid-cols-2">
@@ -826,6 +834,9 @@ function App() {
                         value={styleState.lineHeight}
                         onChange={(event) => updateStyle('lineHeight')(Number(event.target.value))}
                       />
+                      <span className="text-sm text-[var(--chrome-muted)]">
+                        {styleState.lineHeight.toFixed(2)} x
+                      </span>
                     </label>
                     <label className="grid gap-1.5">
                       <span className={controlLabelClass}>Paragraph space</span>
@@ -841,6 +852,9 @@ function App() {
                           updateStyle('paragraphSpacing')(Number(event.target.value))
                         }
                       />
+                      <span className="text-sm text-[var(--chrome-muted)]">
+                        {styleState.paragraphSpacing.toFixed(2)} rem
+                      </span>
                     </label>
                   </div>
                   <label className="grid gap-1.5">
@@ -855,6 +869,9 @@ function App() {
                       value={styleState.letterSpacing}
                       onChange={(event) => updateStyle('letterSpacing')(Number(event.target.value))}
                     />
+                    <span className="text-sm text-[var(--chrome-muted)]">
+                      {styleState.letterSpacing.toFixed(3)} em
+                    </span>
                   </label>
                 </section>
 
@@ -976,6 +993,44 @@ function App() {
                         ))}
                       </SelectField>
                     </div>
+                  </div>
+                  <div className="grid gap-3 rounded-xl border border-white/8 bg-black/10 p-3 sm:grid-cols-2">
+                    <label className="grid gap-1.5">
+                      <span className={controlLabelClass}>Header size</span>
+                      <input
+                        aria-label="Header size"
+                        className="w-full accent-[var(--chrome-accent)]"
+                        type="range"
+                        min={MIN_CHROME_FONT_SIZE_PT}
+                        max={MAX_CHROME_FONT_SIZE_PT}
+                        step="1"
+                        value={pageChrome.headerFontSizePt}
+                        onChange={(event) =>
+                          updatePageChrome('headerFontSizePt')(Number(event.target.value))
+                        }
+                      />
+                      <span className="text-sm text-[var(--chrome-muted)]">
+                        {pageChrome.headerFontSizePt} pt
+                      </span>
+                    </label>
+                    <label className="grid gap-1.5">
+                      <span className={controlLabelClass}>Footer size</span>
+                      <input
+                        aria-label="Footer size"
+                        className="w-full accent-[var(--chrome-accent)]"
+                        type="range"
+                        min={MIN_CHROME_FONT_SIZE_PT}
+                        max={MAX_CHROME_FONT_SIZE_PT}
+                        step="1"
+                        value={pageChrome.footerFontSizePt}
+                        onChange={(event) =>
+                          updatePageChrome('footerFontSizePt')(Number(event.target.value))
+                        }
+                      />
+                      <span className="text-sm text-[var(--chrome-muted)]">
+                        {pageChrome.footerFontSizePt} pt
+                      </span>
+                    </label>
                   </div>
                 </section>
 

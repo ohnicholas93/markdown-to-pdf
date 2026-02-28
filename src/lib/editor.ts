@@ -167,6 +167,10 @@ export type HeaderPosition = keyof typeof HEADER_POSITIONS
 export type FooterPosition = keyof typeof FOOTER_POSITIONS
 export type MarginBoxPosition = keyof typeof PAGE_NUMBER_POSITIONS
 export type MarkdownActionKey = (typeof MARKDOWN_ACTIONS)[number]['key']
+export const MIN_CHROME_FONT_SIZE_PT = 7
+export const MAX_CHROME_FONT_SIZE_PT = 16
+export const DEFAULT_CHROME_FONT_SIZE_PT = 9
+
 export type StyleState = {
   fontFamily: BodyFontPresetKey
   headingFamily: HeadingFontPresetKey
@@ -183,9 +187,11 @@ export type PageChromeState = {
   headerEnabled: boolean
   headerText: string
   headerPosition: HeaderPosition
+  headerFontSizePt: number
   footerEnabled: boolean
   footerText: string
   footerPosition: FooterPosition
+  footerFontSizePt: number
   pageNumbersEnabled: boolean
   pageNumberPosition: MarginBoxPosition
 }
@@ -202,8 +208,8 @@ export const PALETTE_STYLE_KEYS = ['background', 'text', 'accent'] as const
 export const DEFAULT_STYLE: StyleState = {
   fontFamily: 'literata',
   headingFamily: 'libre',
-  bodyFontSize: 17,
-  headingBaseSize: 26,
+  bodyFontSize: 16,
+  headingBaseSize: 22,
   lineHeight: 1.65,
   paragraphSpacing: 1.1,
   letterSpacing: 0,
@@ -219,9 +225,11 @@ export const DEFAULT_PAGE_CHROME: PageChromeState = {
   headerEnabled: false,
   headerText: '',
   headerPosition: 'top-center',
+  headerFontSizePt: DEFAULT_CHROME_FONT_SIZE_PT,
   footerEnabled: false,
   footerText: '',
   footerPosition: 'bottom-center',
+  footerFontSizePt: DEFAULT_CHROME_FONT_SIZE_PT,
   pageNumbersEnabled: true,
   pageNumberPosition: 'bottom-right',
 }
@@ -402,11 +410,21 @@ export const parseStylesetState = (input: string): StylesetState => {
       headerPosition: isHeaderPosition(pageChrome.headerPosition)
         ? pageChrome.headerPosition
         : DEFAULT_PAGE_CHROME.headerPosition,
+      headerFontSizePt: clampChromeFontSizePt(
+        isFiniteNumber(pageChrome.headerFontSizePt)
+          ? pageChrome.headerFontSizePt
+          : DEFAULT_PAGE_CHROME.headerFontSizePt,
+      ),
       footerEnabled: readBoolean(pageChrome.footerEnabled, DEFAULT_PAGE_CHROME.footerEnabled),
       footerText: readString(pageChrome.footerText, DEFAULT_PAGE_CHROME.footerText),
       footerPosition: isFooterPosition(pageChrome.footerPosition)
         ? pageChrome.footerPosition
         : DEFAULT_PAGE_CHROME.footerPosition,
+      footerFontSizePt: clampChromeFontSizePt(
+        isFiniteNumber(pageChrome.footerFontSizePt)
+          ? pageChrome.footerFontSizePt
+          : DEFAULT_PAGE_CHROME.footerFontSizePt,
+      ),
       pageNumbersEnabled: readBoolean(
         pageChrome.pageNumbersEnabled,
         DEFAULT_PAGE_CHROME.pageNumbersEnabled,
@@ -422,6 +440,9 @@ const clampMarginMm = (marginMm: number, pageWidthMm: number, pageHeightMm: numb
   const maxMargin = Math.max(8, Math.min(pageWidthMm, pageHeightMm) / 2 - 12)
   return clamp(marginMm, 8, maxMargin)
 }
+
+const clampChromeFontSizePt = (fontSizePt: number) =>
+  clamp(fontSizePt, MIN_CHROME_FONT_SIZE_PT, MAX_CHROME_FONT_SIZE_PT)
 
 const escapeCssContent = (value: string) =>
   `"${value
@@ -467,35 +488,42 @@ const serializeMarginContent = (parts: string[]) => {
 }
 
 const buildMarginBoxRules = (chrome: PageChromeState) => {
-  const boxes: Record<MarginBoxPosition, string[]> = {
-    'top-left': [],
-    'top-center': [],
-    'top-right': [],
-    'bottom-left': [],
-    'bottom-center': [],
-    'bottom-right': [],
+  const boxes: Record<MarginBoxPosition, { content: string[]; fontSizePt: number | null }> = {
+    'top-left': { content: [], fontSizePt: null },
+    'top-center': { content: [], fontSizePt: null },
+    'top-right': { content: [], fontSizePt: null },
+    'bottom-left': { content: [], fontSizePt: null },
+    'bottom-center': { content: [], fontSizePt: null },
+    'bottom-right': { content: [], fontSizePt: null },
   }
 
   const headerText = chrome.headerText.trim()
   const footerText = chrome.footerText.trim()
 
   if (chrome.headerEnabled && headerText) {
-    boxes[chrome.headerPosition].push(escapeCssContent(headerText))
+    boxes[chrome.headerPosition].content.push(escapeCssContent(headerText))
+    boxes[chrome.headerPosition].fontSizePt = clampChromeFontSizePt(chrome.headerFontSizePt)
   }
 
   if (chrome.footerEnabled && footerText) {
-    boxes[chrome.footerPosition].push(escapeCssContent(footerText))
+    boxes[chrome.footerPosition].content.push(escapeCssContent(footerText))
+    boxes[chrome.footerPosition].fontSizePt = clampChromeFontSizePt(chrome.footerFontSizePt)
   }
 
   if (chrome.pageNumbersEnabled) {
-    boxes[chrome.pageNumberPosition].push('"Page " counter(page)')
+    boxes[chrome.pageNumberPosition].content.push('"Page " counter(page)')
+    boxes[chrome.pageNumberPosition].fontSizePt = clampChromeFontSizePt(chrome.footerFontSizePt)
   }
 
-  return (Object.entries(boxes) as [MarginBoxPosition, string[]][])
+  return (Object.entries(boxes) as [
+    MarginBoxPosition,
+    { content: string[]; fontSizePt: number | null },
+  ][])
     .map(
-      ([box, parts]) => `
+      ([box, rule]) => `
   @${box} {
-    content: ${serializeMarginContent(parts)};
+    content: ${serializeMarginContent(rule.content)};
+    ${rule.fontSizePt === null ? '' : `font-size: ${rule.fontSizePt}pt;`}
   }`,
     )
     .join('\n')
