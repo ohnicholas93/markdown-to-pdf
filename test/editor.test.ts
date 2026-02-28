@@ -30,7 +30,8 @@ describe('editor helpers', () => {
         letterSpacing: 0.015,
       },
       pagePreset: 'letter',
-      marginMm: 18,
+      horizontalMarginMm: 18,
+      verticalMarginMm: 24,
       chrome: {
         ...DEFAULT_PAGE_CHROME,
         headerEnabled: true,
@@ -46,6 +47,7 @@ describe('editor helpers', () => {
 
     expect(css).toContain('@page')
     expect(css).toContain('size: 215.9mm 279.4mm;')
+    expect(css).toContain('margin: 24mm 18mm;')
     expect(css).toContain('@top-left')
     expect(css).toContain('"Release Draft"')
     expect(css).toContain('font-size: 11pt;')
@@ -63,7 +65,8 @@ describe('editor helpers', () => {
     const css = buildPagedDocumentCss({
       style: DEFAULT_STYLE,
       pagePreset: 'a4',
-      marginMm: 16,
+      horizontalMarginMm: 16,
+      verticalMarginMm: 16,
       chrome: {
         ...DEFAULT_PAGE_CHROME,
         footerFontSizePt: 12,
@@ -75,6 +78,18 @@ describe('editor helpers', () => {
     expect(css).toContain('@top-right')
     expect(css).toContain('"Page " counter(page)')
     expect(css).toContain('font-size: 12pt;')
+  })
+
+  test('allows horizontal margins to collapse to zero', () => {
+    const css = buildPagedDocumentCss({
+      style: DEFAULT_STYLE,
+      pagePreset: 'a4',
+      horizontalMarginMm: 0,
+      verticalMarginMm: 16,
+      chrome: DEFAULT_PAGE_CHROME,
+    })
+
+    expect(css).toContain('margin: 16mm 0mm;')
   })
 
   test('applies theme presets without touching typography settings', () => {
@@ -156,7 +171,8 @@ describe('editor helpers', () => {
       createStylesetState({
         themePreset: 'noir',
         pagePreset: 'legal',
-        marginMm: 24,
+        horizontalMarginMm: 22,
+        verticalMarginMm: 24,
         style: {
           ...DEFAULT_STYLE,
           fontFamily: 'space',
@@ -176,12 +192,29 @@ describe('editor helpers', () => {
     expect(parsed.version).toBe(1)
     expect(parsed.themePreset).toBe('noir')
     expect(parsed.pagePreset).toBe('legal')
-    expect(parsed.marginMm).toBe(24)
+    expect(parsed.horizontalMarginMm).toBe(22)
+    expect(parsed.verticalMarginMm).toBe(24)
     expect(parsed.style.fontFamily).toBe('space')
     expect(parsed.style.accent).toBe('#f2a65a')
     expect(parsed.pageChrome.headerEnabled).toBe(true)
     expect(parsed.pageChrome.headerText).toBe('Draft')
     expect(parsed.pageChrome.headerFontSizePt).toBe(12)
+  })
+
+  test('parses legacy stylesets with a single margin value for both axes', () => {
+    const parsed = parseStylesetState(
+      JSON.stringify({
+        version: 1,
+        themePreset: 'classic',
+        pagePreset: 'letter',
+        marginMm: 19,
+        style: DEFAULT_STYLE,
+        pageChrome: DEFAULT_PAGE_CHROME,
+      }),
+    )
+
+    expect(parsed.horizontalMarginMm).toBe(19)
+    expect(parsed.verticalMarginMm).toBe(19)
   })
 
   test('rejects unsupported styleset versions', () => {

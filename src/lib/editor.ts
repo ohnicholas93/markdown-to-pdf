@@ -199,7 +199,8 @@ export type StylesetState = {
   version: 1
   themePreset: ThemeSelection
   pagePreset: PagePresetKey
-  marginMm: number
+  horizontalMarginMm: number
+  verticalMarginMm: number
   style: StyleState
   pageChrome: PageChromeState
 }
@@ -220,7 +221,10 @@ export const DEFAULT_STYLE: StyleState = {
 
 export const DEFAULT_PAGE_PRESET: PagePresetKey = 'a4'
 export const DEFAULT_THEME_PRESET: ThemePresetKey = 'classic'
-export const DEFAULT_MARGIN_MM = 16
+export const DEFAULT_HORIZONTAL_MARGIN_MM = 16
+export const DEFAULT_VERTICAL_MARGIN_MM = 16
+export const MIN_HORIZONTAL_MARGIN_MM = 0
+export const MIN_VERTICAL_MARGIN_MM = 8
 export const DEFAULT_PAGE_CHROME: PageChromeState = {
   headerEnabled: false,
   headerText: '',
@@ -237,7 +241,8 @@ export const DEFAULT_PAGE_CHROME: PageChromeState = {
 type PagedDocumentCssInput = {
   style: StyleState
   pagePreset: PagePresetKey
-  marginMm: number
+  horizontalMarginMm: number
+  verticalMarginMm: number
   chrome: PageChromeState
 }
 
@@ -331,14 +336,16 @@ const isMarginBoxPosition = (value: unknown): value is MarginBoxPosition =>
 export const createStylesetState = ({
   themePreset,
   pagePreset,
-  marginMm,
+  horizontalMarginMm,
+  verticalMarginMm,
   style,
   pageChrome,
 }: Omit<StylesetState, 'version'>): StylesetState => ({
   version: 1,
   themePreset,
   pagePreset,
-  marginMm,
+  horizontalMarginMm,
+  verticalMarginMm,
   style: { ...style },
   pageChrome: { ...pageChrome },
 })
@@ -361,9 +368,20 @@ export const parseStylesetState = (input: string): StylesetState => {
   return createStylesetState({
     themePreset: isThemeSelection(parsed.themePreset) ? parsed.themePreset : DEFAULT_THEME_PRESET,
     pagePreset,
-    marginMm: clampMarginMm(
-      isFiniteNumber(parsed.marginMm) ? parsed.marginMm : DEFAULT_MARGIN_MM,
+    horizontalMarginMm: clampHorizontalMarginMm(
+      isFiniteNumber(parsed.horizontalMarginMm)
+        ? parsed.horizontalMarginMm
+        : isFiniteNumber(parsed.marginMm)
+          ? parsed.marginMm
+          : DEFAULT_HORIZONTAL_MARGIN_MM,
       preset.widthMm,
+    ),
+    verticalMarginMm: clampVerticalMarginMm(
+      isFiniteNumber(parsed.verticalMarginMm)
+        ? parsed.verticalMarginMm
+        : isFiniteNumber(parsed.marginMm)
+          ? parsed.marginMm
+          : DEFAULT_VERTICAL_MARGIN_MM,
       preset.heightMm,
     ),
     style: {
@@ -436,10 +454,11 @@ export const parseStylesetState = (input: string): StylesetState => {
   })
 }
 
-const clampMarginMm = (marginMm: number, pageWidthMm: number, pageHeightMm: number) => {
-  const maxMargin = Math.max(8, Math.min(pageWidthMm, pageHeightMm) / 2 - 12)
-  return clamp(marginMm, 8, maxMargin)
-}
+const clampHorizontalMarginMm = (marginMm: number, pageWidthMm: number) =>
+  clamp(marginMm, MIN_HORIZONTAL_MARGIN_MM, Math.max(MIN_HORIZONTAL_MARGIN_MM, pageWidthMm / 2 - 12))
+
+const clampVerticalMarginMm = (marginMm: number, pageHeightMm: number) =>
+  clamp(marginMm, MIN_VERTICAL_MARGIN_MM, Math.max(MIN_VERTICAL_MARGIN_MM, pageHeightMm / 2 - 12))
 
 const clampChromeFontSizePt = (fontSizePt: number) =>
   clamp(fontSizePt, MIN_CHROME_FONT_SIZE_PT, MAX_CHROME_FONT_SIZE_PT)
@@ -532,11 +551,13 @@ const buildMarginBoxRules = (chrome: PageChromeState) => {
 export const buildPagedDocumentCss = ({
   style,
   pagePreset,
-  marginMm,
+  horizontalMarginMm,
+  verticalMarginMm,
   chrome,
 }: PagedDocumentCssInput) => {
   const preset = PAGE_PRESETS[pagePreset]
-  const safeMarginMm = clampMarginMm(marginMm, preset.widthMm, preset.heightMm)
+  const safeHorizontalMarginMm = clampHorizontalMarginMm(horizontalMarginMm, preset.widthMm)
+  const safeVerticalMarginMm = clampVerticalMarginMm(verticalMarginMm, preset.heightMm)
   const bodyFont = BODY_FONT_PRESETS[style.fontFamily]
   const headingFont = HEADING_FONT_PRESETS[style.headingFamily]
   const chromeColor = withAlpha(style.text, 0.72)
@@ -544,7 +565,7 @@ export const buildPagedDocumentCss = ({
   return `
 @page {
   size: ${preset.widthMm}mm ${preset.heightMm}mm;
-  margin: ${safeMarginMm}mm;
+  margin: ${safeVerticalMarginMm}mm ${safeHorizontalMarginMm}mm;
   ${buildMarginBoxRules(chrome)}
 }
 

@@ -56,7 +56,8 @@ describe('App', () => {
     fireEvent.click(view.getByRole('button', { name: 'Document Settings' }))
 
     expect(view.getByLabelText('Page')).toBeInTheDocument()
-    expect(view.getByLabelText('Margin')).toBeInTheDocument()
+    expect(view.getByLabelText('Horizontal margin')).toBeInTheDocument()
+    expect(view.getByLabelText('Vertical margin')).toBeInTheDocument()
   })
 
   test('supports keyboard resizing and clamps the split ratio', () => {
@@ -129,7 +130,8 @@ describe('App', () => {
           version: 1,
           themePreset: 'noir',
           pagePreset: 'a4',
-          marginMm: 16,
+          horizontalMarginMm: 14,
+          verticalMarginMm: 20,
           style: {
             background: '#191613',
             text: '#f5eadc',
@@ -179,6 +181,8 @@ describe('App', () => {
     expect(exported.version).toBe(1)
     expect(exported.themePreset).toBe('noir')
     expect(exported.pagePreset).toBe('a4')
+    expect(exported.horizontalMarginMm).toBe(14)
+    expect(exported.verticalMarginMm).toBe(20)
     expect(exported.style.background).toBe('#191613')
     expect(exported.pageChrome.headerFontSizePt).toBe(12)
     expect(exported.pageChrome.footerFontSizePt).toBe(8)
@@ -198,7 +202,8 @@ describe('App', () => {
           version: 1,
           themePreset: 'custom',
           pagePreset: 'legal',
-          marginMm: 24,
+          horizontalMarginMm: 22,
+          verticalMarginMm: 24,
           style: {
             fontFamily: 'space',
             headingFamily: 'playfair',
@@ -237,7 +242,8 @@ describe('App', () => {
       expect((view.getByLabelText('Page') as HTMLSelectElement).value).toBe('legal')
     })
 
-    expect((view.getByLabelText('Margin') as HTMLInputElement).value).toBe('24')
+    expect((view.getByLabelText('Horizontal margin') as HTMLInputElement).value).toBe('22')
+    expect((view.getByLabelText('Vertical margin') as HTMLInputElement).value).toBe('24')
     expect((view.getByLabelText('Body font') as HTMLSelectElement).value).toBe('space')
     expect((view.getByLabelText('Heading font') as HTMLSelectElement).value).toBe('playfair')
     expect((view.getByLabelText('Paper') as HTMLInputElement).value).toBe('#f4efe8')
@@ -245,6 +251,59 @@ describe('App', () => {
     expect((view.getByLabelText('Header size') as HTMLInputElement).value).toBe('13')
     expect((view.getByLabelText('Footer size') as HTMLInputElement).value).toBe('10')
     expect(view.getByText('Imported styleset from custom-styleset.json.')).toBeInTheDocument()
+  })
+
+  test('imports legacy stylesets that only specify one margin value', async () => {
+    const view = render(<App />)
+
+    fireEvent.click(view.getByRole('button', { name: 'Document Settings' }))
+
+    const file = new File(
+      [
+        JSON.stringify({
+          version: 1,
+          themePreset: 'classic',
+          pagePreset: 'a4',
+          marginMm: 21,
+          style: {
+            fontFamily: 'literata',
+            headingFamily: 'libre',
+            bodyFontSize: 16,
+            headingBaseSize: 22,
+            lineHeight: 1.65,
+            paragraphSpacing: 1.1,
+            letterSpacing: 0,
+            background: '#ffffff',
+            text: '#111111',
+            accent: '#111111',
+          },
+          pageChrome: {
+            headerEnabled: false,
+            headerText: '',
+            headerPosition: 'top-center',
+            headerFontSizePt: 9,
+            footerEnabled: false,
+            footerText: '',
+            footerPosition: 'bottom-center',
+            footerFontSizePt: 9,
+            pageNumbersEnabled: true,
+            pageNumberPosition: 'bottom-right',
+          },
+        }),
+      ],
+      'legacy-styleset.json',
+      { type: 'application/json' },
+    )
+
+    fireEvent.change(view.getByLabelText('Import styleset JSON'), {
+      target: { files: [file] },
+    })
+
+    await waitFor(() => {
+      expect((view.getByLabelText('Horizontal margin') as HTMLInputElement).value).toBe('21')
+    })
+
+    expect((view.getByLabelText('Vertical margin') as HTMLInputElement).value).toBe('21')
   })
 
   test('shows an error when a styleset JSON file is invalid', async () => {

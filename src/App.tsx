@@ -10,12 +10,15 @@ import {
   BODY_FONT_PRESETS,
   createStylesetState,
   MAX_CHROME_FONT_SIZE_PT,
+  MIN_HORIZONTAL_MARGIN_MM,
   MIN_CHROME_FONT_SIZE_PT,
-  DEFAULT_MARGIN_MM,
+  MIN_VERTICAL_MARGIN_MM,
+  DEFAULT_HORIZONTAL_MARGIN_MM,
   DEFAULT_PAGE_CHROME,
   DEFAULT_PAGE_PRESET,
   DEFAULT_STYLE,
   DEFAULT_THEME_PRESET,
+  DEFAULT_VERTICAL_MARGIN_MM,
   FOOTER_POSITIONS,
   HEADER_POSITIONS,
   HEADING_FONT_PRESETS,
@@ -249,7 +252,8 @@ function App() {
   const [styleState, setStyleState] = useState(DEFAULT_STYLE)
   const [pagePreset, setPagePreset] = useState<PagePresetKey>(DEFAULT_PAGE_PRESET)
   const [themePreset, setThemePreset] = useState<ThemeSelection>(DEFAULT_THEME_PRESET)
-  const [marginMm, setMarginMm] = useState(DEFAULT_MARGIN_MM)
+  const [horizontalMarginMm, setHorizontalMarginMm] = useState(DEFAULT_HORIZONTAL_MARGIN_MM)
+  const [verticalMarginMm, setVerticalMarginMm] = useState(DEFAULT_VERTICAL_MARGIN_MM)
   const [pageChrome, setPageChrome] = useState(DEFAULT_PAGE_CHROME)
   const [isControlsExpanded, setIsControlsExpanded] = useState(false)
   const [debouncedMarkdown, setDebouncedMarkdown] = useState(markdown)
@@ -409,7 +413,8 @@ function App() {
               [window.location.href]: buildPagedDocumentCss({
                 style: styleState,
                 pagePreset,
-                marginMm,
+                horizontalMarginMm,
+                verticalMarginMm,
                 chrome: pageChrome,
               }),
             },
@@ -469,7 +474,15 @@ function App() {
       stagingContainer?.remove()
       stagingContainer = null
     }
-  }, [deferredMarkdown, fontRenderVersion, marginMm, pageChrome, pagePreset, styleState])
+  }, [
+    deferredMarkdown,
+    fontRenderVersion,
+    horizontalMarginMm,
+    pageChrome,
+    pagePreset,
+    styleState,
+    verticalMarginMm,
+  ])
 
   useEffect(() => {
     return () => {
@@ -524,7 +537,8 @@ function App() {
     setStyleState(DEFAULT_STYLE)
     setPagePreset(DEFAULT_PAGE_PRESET)
     setThemePreset(DEFAULT_THEME_PRESET)
-    setMarginMm(DEFAULT_MARGIN_MM)
+    setHorizontalMarginMm(DEFAULT_HORIZONTAL_MARGIN_MM)
+    setVerticalMarginMm(DEFAULT_VERTICAL_MARGIN_MM)
     setPageChrome(DEFAULT_PAGE_CHROME)
     setStylesetNotice(null)
   }
@@ -533,7 +547,8 @@ function App() {
     createStylesetState({
       themePreset,
       pagePreset,
-      marginMm,
+      horizontalMarginMm,
+      verticalMarginMm,
       style: styleState,
       pageChrome,
     })
@@ -570,7 +585,8 @@ function App() {
       paletteCommitGenerationRef.current += 1
       setThemePreset(imported.themePreset)
       setPagePreset(imported.pagePreset)
-      setMarginMm(imported.marginMm)
+      setHorizontalMarginMm(imported.horizontalMarginMm)
+      setVerticalMarginMm(imported.verticalMarginMm)
       setStyleState(imported.style)
       setPageChrome(imported.pageChrome)
       setStylesetNotice({
@@ -726,20 +742,40 @@ function App() {
                       ))}
                     </SelectField>
                   </label>
-                  <label className="grid gap-1.5">
-                    <span className={controlLabelClass}>Margin</span>
-                    <input
-                      aria-label="Margin"
-                      className="w-full accent-[var(--chrome-accent)]"
-                      type="range"
-                      min="10"
-                      max="28"
-                      step="1"
-                      value={marginMm}
-                      onChange={(event) => setMarginMm(Number(event.target.value))}
-                    />
-                    <span className="text-sm text-[var(--chrome-muted)]">{marginMm} mm</span>
-                  </label>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <label className="grid gap-1.5">
+                      <span className={controlLabelClass}>Horizontal margin</span>
+                      <input
+                        aria-label="Horizontal margin"
+                        className="w-full accent-[var(--chrome-accent)]"
+                        type="range"
+                        min={MIN_HORIZONTAL_MARGIN_MM}
+                        max="28"
+                        step="1"
+                        value={horizontalMarginMm}
+                        onChange={(event) => setHorizontalMarginMm(Number(event.target.value))}
+                      />
+                      <span className="text-sm text-[var(--chrome-muted)]">
+                        {horizontalMarginMm} mm
+                      </span>
+                    </label>
+                    <label className="grid gap-1.5">
+                      <span className={controlLabelClass}>Vertical margin</span>
+                      <input
+                        aria-label="Vertical margin"
+                        className="w-full accent-[var(--chrome-accent)]"
+                        type="range"
+                        min={MIN_VERTICAL_MARGIN_MM}
+                        max="28"
+                        step="1"
+                        value={verticalMarginMm}
+                        onChange={(event) => setVerticalMarginMm(Number(event.target.value))}
+                      />
+                      <span className="text-sm text-[var(--chrome-muted)]">
+                        {verticalMarginMm} mm
+                      </span>
+                    </label>
+                  </div>
                 </section>
 
                 <section className="flex flex-col gap-3 rounded-[1rem] border border-white/8 bg-black/15 p-3">
