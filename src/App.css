@@ -18,8 +18,10 @@
 
 .paper-surface {
   width: min(100%, var(--page-width));
+  min-height: var(--page-min-height);
   background: var(--page-background);
   color: var(--page-text);
+  padding: var(--page-padding);
 }
 
 .markdown-body h1,
