@@ -1029,15 +1029,31 @@ function App() {
                       onCommit={updatePaletteStyle('accent')}
                     />
                   </div>
-                  <input
-                    ref={stylesetInputRef}
-                    aria-label="Import styleset JSON"
-                    className="sr-only"
-                    type="file"
-                    accept="application/json,.json"
-                    onChange={handleImportStyleset}
-                  />
-                  <div className="flex flex-wrap gap-2">
+                </section>
+                </div>
+                <input
+                  ref={stylesetInputRef}
+                  aria-label="Import styleset JSON"
+                  className="sr-only"
+                  type="file"
+                  accept="application/json,.json"
+                  onChange={handleImportStyleset}
+                />
+                <div className="flex flex-col gap-3 bg-black/10 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="min-h-[1.25rem] text-sm">
+                    {stylesetNotice ? (
+                      <p
+                        className={`m-0 ml-5 ${
+                          stylesetNotice.tone === 'error'
+                            ? 'text-amber-200'
+                            : 'text-[var(--chrome-muted)]'
+                        }`}
+                      >
+                        {stylesetNotice.message}
+                      </p>
+                    ) : null}
+                  </div>
+                  <div className="flex flex-wrap gap-2 sm:justify-end">
                     <button
                       className="rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-sm font-semibold transition hover:border-white/20 hover:bg-white/[0.08] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--chrome-accent)]"
                       type="button"
@@ -1060,18 +1076,6 @@ function App() {
                       Reset settings
                     </button>
                   </div>
-                  {stylesetNotice ? (
-                    <p
-                      className={`m-0 text-sm ${
-                        stylesetNotice.tone === 'error'
-                          ? 'text-amber-200'
-                          : 'text-[var(--chrome-muted)]'
-                      }`}
-                    >
-                      {stylesetNotice.message}
-                    </p>
-                  ) : null}
-                </section>
                 </div>
               </div>
             </div>
