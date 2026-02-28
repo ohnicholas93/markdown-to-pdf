@@ -518,11 +518,9 @@ function App() {
 
   const previewStatus = paginationError
     ? paginationError
-    : isPaginating
-      ? 'Updating preview'
-      : pageCount > 0
-        ? `${pageCount} ${pageCount === 1 ? 'page' : 'pages'}`
-        : 'Preview ready'
+    : pageCount > 0
+      ? `${pageCount} ${pageCount === 1 ? 'page' : 'pages'}`
+      : 'Rendering'
   const previewDocumentStyle = {
     '--page-background': styleState.background,
     '--page-text': styleState.text,
@@ -550,14 +548,14 @@ function App() {
             </div>
 
             <div className="flex flex-wrap items-center gap-2 xl:justify-end">
-              <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-sm text-[var(--chrome-muted)]">
+              <span className="rounded-full border border-white/10 bg-black/[0.8] px-4 py-1.5 text-sm text-[var(--chrome-muted)]">
                 {activePagePreset.label}
               </span>
-              <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-sm text-[var(--chrome-muted)]">
+              <span className="rounded-full border border-white/10 bg-black/[0.8] px-4 py-1.5 text-sm text-[var(--chrome-muted)]">
                 {previewStatus}
               </span>
               <button
-                className="rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-sm font-semibold transition hover:border-white/20 hover:bg-white/[0.08] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--chrome-accent)]"
+                className="rounded-full border border-white/10 bg-black/[0.8] px-4 py-2 text-sm font-semibold transition hover:-translate-y-0.5 hover:border-white/20 hover:bg-black/[0.9] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--chrome-accent)]"
                 type="button"
                 aria-expanded={isControlsExpanded}
                 aria-controls="document-settings"
@@ -566,7 +564,7 @@ function App() {
                 {isControlsExpanded ? 'Hide Settings' : 'Document Settings'}
               </button>
               <button
-                className="rounded-full border border-transparent bg-[var(--chrome-accent)] px-5 py-2.5 font-semibold text-[#14110f] shadow-[0_10px_24px_rgba(201,115,66,0.22)] transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60 disabled:transform-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--chrome-accent)]"
+                className="rounded-full border border-transparent bg-[var(--chrome-accent)]/90 px-5 py-2.5 font-semibold text-[#14110f] shadow-[0_10px_24px_rgba(201,115,66,0.22)] transition hover:-translate-y-0.5 hover:bg-[var(--chrome-accent)] disabled:cursor-not-allowed disabled:opacity-60 disabled:transform-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--chrome-accent)]"
                 type="button"
                 onClick={handlePrint}
                 disabled={isPaginating || !!paginationError || pageCount === 0}
