@@ -1,9 +1,10 @@
 import { describe, expect, test } from 'bun:test'
 import {
+  DEFAULT_PAGE_CHROME,
   DEFAULT_STYLE,
   applyThemePreset,
-  buildPaperLayout,
-  buildPdfImagePlan,
+  applyMarkdownAction,
+  buildPagedDocumentCss,
   countWords,
   isPaletteStyleKey,
 } from '../src/lib/editor'
@@ -15,49 +16,50 @@ describe('editor helpers', () => {
     expect(countWords('One  two\nthree')).toBe(3)
   })
 
-  test('builds page layout values that reflect preset proportions and margins', () => {
-    const a4Layout = buildPaperLayout(
-      { ...DEFAULT_STYLE, contentWidth: 840 },
-      12,
-      'a4',
-    )
-    const letterLayout = buildPaperLayout(
-      { ...DEFAULT_STYLE, contentWidth: 840 },
-      20,
-      'letter',
-    )
-
-    expect(a4Layout.pagePadding).toBe('48px')
-    expect(a4Layout.pageMinHeight).toBe('1188px')
-    expect(letterLayout.safeMarginMm).toBe(20)
-    expect(parseFloat(letterLayout.pagePadding)).toBeCloseTo((840 * 20) / 215.9)
-    expect(parseFloat(letterLayout.pageMinHeight)).toBeCloseTo((840 * 279.4) / 215.9)
-    expect(parseFloat(letterLayout.pageMinHeight)).toBeLessThan(parseFloat(a4Layout.pageMinHeight))
-  })
-
-  test('creates a stable multi-page PDF plan for tall previews', () => {
-    const plan = buildPdfImagePlan({
-      canvasWidthPx: 1000,
-      canvasHeightPx: 3000,
-      pageWidthMm: 210,
-      pageHeightMm: 297,
-      marginMm: 12,
+  test('builds paged CSS with page boxes, page numbers, and typography controls', () => {
+    const css = buildPagedDocumentCss({
+      style: {
+        ...DEFAULT_STYLE,
+        fontFamily: 'source',
+        headingFamily: 'playfair',
+        paragraphSpacing: 1.35,
+        letterSpacing: 0.015,
+      },
+      pagePreset: 'letter',
+      marginMm: 18,
+      chrome: {
+        ...DEFAULT_PAGE_CHROME,
+        headerEnabled: true,
+        headerText: 'Release Draft',
+        headerPosition: 'top-left',
+        footerEnabled: true,
+        footerText: 'Internal Use',
+        footerPosition: 'bottom-center',
+      },
     })
 
-    expect(plan.printableWidthMm).toBe(186)
-    expect(plan.printableHeightMm).toBe(273)
-    expect(plan.renderedHeightMm).toBe(558)
-    expect(plan.offsetsYMm).toEqual([12, -261, -534])
+    expect(css).toContain('@page')
+    expect(css).toContain('size: 215.9mm 279.4mm;')
+    expect(css).toContain('@top-left')
+    expect(css).toContain('"Release Draft"')
+    expect(css).toContain('@bottom-center')
+    expect(css).toContain('"Internal Use"')
+    expect(css).toContain('counter(page)')
+    expect(css).toContain("font-family: 'Source Serif 4'")
+    expect(css).toContain("font-family: 'Playfair Display'")
+    expect(css).toContain('letter-spacing: 0.015em;')
+    expect(css).toContain('print-color-adjust: exact;')
   })
 
   test('applies theme presets without touching typography settings', () => {
     const next = applyThemePreset(
-      { ...DEFAULT_STYLE, fontSize: 21, lineHeight: 1.9 },
+      { ...DEFAULT_STYLE, fontSize: 21, lineHeight: 1.9, paragraphSpacing: 1.4 },
       'noir',
     )
 
     expect(next.fontSize).toBe(21)
     expect(next.lineHeight).toBe(1.9)
+    expect(next.paragraphSpacing).toBe(1.4)
     expect(next.background).toBe('#191613')
     expect(next.text).toBe('#f5eadc')
     expect(next.accent).toBe('#f2a65a')
@@ -69,6 +71,30 @@ describe('editor helpers', () => {
     expect(isPaletteStyleKey('accent')).toBe(true)
     expect(isPaletteStyleKey('fontSize')).toBe(false)
     expect(isPaletteStyleKey('lineHeight')).toBe(false)
-    expect(isPaletteStyleKey('contentWidth')).toBe(false)
+    expect(isPaletteStyleKey('paragraphSpacing')).toBe(false)
+    expect(isPaletteStyleKey('letterSpacing')).toBe(false)
+  })
+
+  test('applies markdown toolbar actions around the current selection', () => {
+    const bold = applyMarkdownAction(
+      {
+        markdown: 'Hello world',
+        selectionStart: 6,
+        selectionEnd: 11,
+      },
+      'bold',
+    )
+
+    const list = applyMarkdownAction(
+      {
+        markdown: 'First\nSecond',
+        selectionStart: 0,
+        selectionEnd: 12,
+      },
+      'numbered-list',
+    )
+
+    expect(bold.markdown).toBe('Hello **world**')
+    expect(list.markdown).toBe('1. First\n2. Second')
   })
 })

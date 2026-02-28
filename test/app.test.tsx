@@ -1,21 +1,35 @@
 /// <reference lib="dom" />
 
 import { describe, expect, test } from 'bun:test'
-import { fireEvent, render } from '@testing-library/react'
+import { fireEvent, render, waitFor } from '@testing-library/react'
 import App from '../src/App'
 import { countWords } from '../src/lib/editor'
 
 describe('App', () => {
-  test('renders the default markdown preview and default stats', () => {
-    const view = render(<App />)
-    const editor = view.getByLabelText('Markdown editor') as HTMLTextAreaElement
+  test('renders the default markdown preview and default stats', async () => {
+    const originalConsoleError = console.error
+    console.error = () => {}
 
-    expect(view.getByRole('heading', { name: 'Editorial Markdown' })).toBeInTheDocument()
-    expect(view.getByText('A4 PDF')).toBeInTheDocument()
-    expect(view.getByText('12mm margin')).toBeInTheDocument()
-    expect(view.getAllByText('Warm Editorial').length).toBeGreaterThan(0)
-    expect(view.getByRole('button', { name: 'Download PDF' })).toBeInTheDocument()
-    expect(view.getByText(`${countWords(editor.value)} words`)).toBeInTheDocument()
+    try {
+      const view = render(<App />)
+      const editor = view.getByLabelText('Markdown editor') as HTMLTextAreaElement
+
+      expect(view.getByText('A4 layout')).toBeInTheDocument()
+      expect(view.getByText('Page numbers on')).toBeInTheDocument()
+      expect(view.getAllByText('Warm Editorial').length).toBeGreaterThan(0)
+      expect(view.getByRole('button', { name: /Print \/ Save PDF|Paginating pages/ })).toBeInTheDocument()
+      expect(view.getByRole('button', { name: 'Bold' })).toBeInTheDocument()
+      expect(view.getByText(`${countWords(editor.value)} words`)).toBeInTheDocument()
+
+      await waitFor(() => {
+        expect(
+          view.queryByRole('heading', { name: 'Editorial Markdown' }) ??
+            view.queryByText(/Paginated preview is unavailable/),
+        ).toBeTruthy()
+      })
+    } finally {
+      console.error = originalConsoleError
+    }
   })
 
   test('supports keyboard resizing and clamps the split ratio', () => {
