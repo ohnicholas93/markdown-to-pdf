@@ -679,11 +679,18 @@ function App() {
         <div className="relative mx-auto flex max-w-[1600px] flex-col gap-3 px-6 py-4 sm:px-5">
           <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
             <div className="min-w-0">
-              <h1 className="m-0 font-[var(--font-display)] text-[clamp(1.4rem,1.1rem+0.8vw,2rem)] font-semibold tracking-[-0.03em]">
-                Markdown to PDF
-              </h1>
-              <p className="mt-0.5 max-w-[70ch] text-sm text-[var(--chrome-muted)] sm:text-[0.95rem]">
-                Write markdown, preview real pages, and export a clean browser-rendered PDF.
+              <div className="flex items-center gap-5">
+                <img
+                  alt="Markdown to PDF logo"
+                  className="h-8 w-8 object-contain"
+                  src="/logo.png"
+                />
+                <h1 className="m-0 mt-0.5 font-[var(--font-display)] text-[clamp(1.4rem,1.1rem+0.8vw,2rem)] font-semibold tracking-[-0.03em]">
+                  Markdown to PDF
+                </h1>
+              </div>
+              <p className="mt-1.5 max-w-[70ch] text-sm text-[var(--chrome-muted)] sm:text-[0.95rem]">
+                Write markdown, preview, and export a polished PDF directly from the browser.
               </p>
             </div>
 
