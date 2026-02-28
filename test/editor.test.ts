@@ -54,11 +54,18 @@ describe('editor helpers', () => {
 
   test('applies theme presets without touching typography settings', () => {
     const next = applyThemePreset(
-      { ...DEFAULT_STYLE, fontSize: 21, lineHeight: 1.9, paragraphSpacing: 1.4 },
+      {
+        ...DEFAULT_STYLE,
+        bodyFontSize: 21,
+        headingBaseSize: 30,
+        lineHeight: 1.9,
+        paragraphSpacing: 1.4,
+      },
       'noir',
     )
 
-    expect(next.fontSize).toBe(21)
+    expect(next.bodyFontSize).toBe(21)
+    expect(next.headingBaseSize).toBe(30)
     expect(next.lineHeight).toBe(1.9)
     expect(next.paragraphSpacing).toBe(1.4)
     expect(next.background).toBe('#191613')
@@ -78,7 +85,8 @@ describe('editor helpers', () => {
     expect(isPaletteStyleKey('background')).toBe(true)
     expect(isPaletteStyleKey('text')).toBe(true)
     expect(isPaletteStyleKey('accent')).toBe(true)
-    expect(isPaletteStyleKey('fontSize')).toBe(false)
+    expect(isPaletteStyleKey('bodyFontSize')).toBe(false)
+    expect(isPaletteStyleKey('headingBaseSize')).toBe(false)
     expect(isPaletteStyleKey('lineHeight')).toBe(false)
     expect(isPaletteStyleKey('paragraphSpacing')).toBe(false)
     expect(isPaletteStyleKey('letterSpacing')).toBe(false)

@@ -170,7 +170,8 @@ export type MarkdownActionKey = (typeof MARKDOWN_ACTIONS)[number]['key']
 export type StyleState = {
   fontFamily: BodyFontPresetKey
   headingFamily: HeadingFontPresetKey
-  fontSize: number
+  bodyFontSize: number
+  headingBaseSize: number
   lineHeight: number
   paragraphSpacing: number
   letterSpacing: number
@@ -193,7 +194,8 @@ export const PALETTE_STYLE_KEYS = ['background', 'text', 'accent'] as const
 export const DEFAULT_STYLE: StyleState = {
   fontFamily: 'literata',
   headingFamily: 'libre',
-  fontSize: 17,
+  bodyFontSize: 17,
+  headingBaseSize: 26,
   lineHeight: 1.65,
   paragraphSpacing: 1.1,
   letterSpacing: 0,
@@ -418,7 +420,7 @@ export const buildPagedDocumentCss = ({
 .document-root {
   color: ${style.text};
   font-family: ${bodyFont.family};
-  font-size: ${style.fontSize}px;
+  font-size: ${style.bodyFontSize}px;
   line-height: ${style.lineHeight};
   letter-spacing: ${style.letterSpacing}em;
 }
@@ -444,19 +446,27 @@ export const buildPagedDocumentCss = ({
 }
 
 .document-root .markdown-body h1 {
-  font-size: 2.6rem;
+  font-size: ${style.headingBaseSize * 1.625}px;
 }
 
 .document-root .markdown-body h2 {
-  font-size: 2rem;
+  font-size: ${style.headingBaseSize * 1.25}px;
 }
 
 .document-root .markdown-body h3 {
-  font-size: 1.55rem;
+  font-size: ${style.headingBaseSize}px;
 }
 
 .document-root .markdown-body h4 {
-  font-size: 1.2rem;
+  font-size: ${style.headingBaseSize * 0.82}px;
+}
+
+.document-root .markdown-body h5 {
+  font-size: ${style.headingBaseSize * 0.68}px;
+}
+
+.document-root .markdown-body h6 {
+  font-size: ${style.headingBaseSize * 0.58}px;
 }
 
 .document-root .markdown-body p,

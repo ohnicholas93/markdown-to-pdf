@@ -566,7 +566,8 @@ function App() {
     '--page-accent': styleState.accent,
     '--page-body-family': BODY_FONT_PRESETS[styleState.fontFamily].family,
     '--page-heading-family': HEADING_FONT_PRESETS[styleState.headingFamily].family,
-    '--page-font-size': `${styleState.fontSize}px`,
+    '--page-font-size': `${styleState.bodyFontSize}px`,
+    '--page-heading-base-size': `${styleState.headingBaseSize}px`,
     '--page-line-height': String(styleState.lineHeight),
     '--page-letter-spacing': `${styleState.letterSpacing}em`,
     '--page-block-spacing': `${styleState.paragraphSpacing}rem`,
@@ -624,7 +625,7 @@ function App() {
                   <div>
                     <p className={controlLabelClass}>Document</p>
                     <h2 className="mt-1 text-base font-semibold text-[var(--chrome-text)]">
-                      Page setup
+                      Page Setup
                     </h2>
                   </div>
                   <label className="grid gap-1.5">
@@ -661,7 +662,7 @@ function App() {
                   <div>
                     <p className={controlLabelClass}>Typography</p>
                     <h2 className="mt-1 text-base font-semibold text-[var(--chrome-text)]">
-                      Reading rhythm
+                      Reading Rhythm
                     </h2>
                   </div>
                   <label className="grid gap-1.5">
@@ -698,19 +699,38 @@ function App() {
                       ))}
                     </SelectField>
                   </label>
-                  <label className="grid gap-1.5">
-                    <span className={controlLabelClass}>Font size</span>
-                    <input
-                      aria-label="Font size"
-                      className="w-full accent-[var(--chrome-accent)]"
-                      type="range"
-                      min="13"
-                      max="24"
-                      step="1"
-                      value={styleState.fontSize}
-                      onChange={(event) => updateStyle('fontSize')(Number(event.target.value))}
-                    />
-                  </label>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <label className="grid gap-1.5">
+                      <span className={controlLabelClass}>Body size</span>
+                      <input
+                        aria-label="Body font size"
+                        className="w-full accent-[var(--chrome-accent)]"
+                        type="range"
+                        min="13"
+                        max="24"
+                        step="1"
+                        value={styleState.bodyFontSize}
+                        onChange={(event) =>
+                          updateStyle('bodyFontSize')(Number(event.target.value))
+                        }
+                      />
+                    </label>
+                    <label className="grid gap-1.5">
+                      <span className={controlLabelClass}>Heading size</span>
+                      <input
+                        aria-label="Heading base size"
+                        className="w-full accent-[var(--chrome-accent)]"
+                        type="range"
+                        min="18"
+                        max="36"
+                        step="1"
+                        value={styleState.headingBaseSize}
+                        onChange={(event) =>
+                          updateStyle('headingBaseSize')(Number(event.target.value))
+                        }
+                      />
+                    </label>
+                  </div>
                   <div className="grid gap-3 sm:grid-cols-2">
                     <label className="grid gap-1.5">
                       <span className={controlLabelClass}>Line height</span>
@@ -758,9 +778,9 @@ function App() {
 
                 <section className="flex flex-col gap-3 rounded-[1rem] border border-white/8 bg-black/15 p-3">
                   <div>
-                    <p className={controlLabelClass}>Page chrome</p>
+                    <p className={controlLabelClass}>Metadata</p>
                     <h2 className="mt-1 text-base font-semibold text-[var(--chrome-text)]">
-                      Running content
+                      Running Content
                     </h2>
                   </div>
                   <div className="flex flex-col gap-2 rounded-xl border border-white/8 bg-black/10 p-3">
@@ -779,7 +799,7 @@ function App() {
                       </label>
                       <SelectField
                         ariaLabel="Header position"
-                        className="w-full sm:w-48"
+                        className="w-full sm:w-40"
                         value={pageChrome.headerPosition}
                         onChange={(event) =>
                           updatePageChrome('headerPosition')(
@@ -819,7 +839,7 @@ function App() {
                       </label>
                       <SelectField
                         ariaLabel="Footer position"
-                        className="w-full sm:w-48"
+                        className="w-full sm:w-40"
                         value={pageChrome.footerPosition}
                         onChange={(event) =>
                           updatePageChrome('footerPosition')(
@@ -855,11 +875,11 @@ function App() {
                             updatePageChrome('pageNumbersEnabled')(event.target.checked)
                           }
                         />
-                        Page numbers
+                        Page Numbers
                       </label>
                       <SelectField
                         ariaLabel="Page number position"
-                        className="w-full sm:w-48"
+                        className="w-full sm:w-40"
                         value={pageChrome.pageNumberPosition}
                         onChange={(event) =>
                           updatePageChrome('pageNumberPosition')(
@@ -881,7 +901,7 @@ function App() {
                   <div>
                     <p className={controlLabelClass}>Palette</p>
                     <h2 className="mt-1 text-base font-semibold text-[var(--chrome-text)]">
-                      Theme and color
+                      Theme and Color
                     </h2>
                   </div>
                   <div className="flex flex-wrap gap-2">
