@@ -674,7 +674,7 @@ function App() {
   } as CSSProperties
 
   return (
-    <div className="app-shell min-h-screen text-[var(--chrome-text)] print:min-h-0">
+    <div className="app-shell min-h-screen text-[var(--chrome-text)] lg:h-screen lg:overflow-hidden print:min-h-0 print:h-auto print:overflow-visible">
       <header className="app-chrome sticky top-0 z-20 border-b border-white/10 bg-[linear-gradient(180deg,rgba(11,15,19,0.97),rgba(11,15,19,0.9)),var(--chrome-surface)] backdrop-blur-xl print:hidden">
         <div className="relative mx-auto flex max-w-[1600px] flex-col gap-3 px-6 py-4 sm:px-5">
           <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
@@ -1182,11 +1182,11 @@ function App() {
       </header>
 
       <main
-        className="workspace mx-auto flex min-h-[calc(100vh-5.5rem)] max-w-[1600px] flex-col gap-4 p-3 sm:p-5 lg:flex-row lg:gap-0 print:min-h-0 print:max-w-none print:gap-0 print:p-0"
+        className="workspace mx-auto flex min-h-[calc(100vh-5.5rem)] max-w-[1600px] flex-col gap-4 p-3 sm:p-5 lg:h-[calc(100vh-5.5rem)] lg:min-h-0 lg:flex-row lg:gap-0 print:min-h-0 print:h-auto print:max-w-none print:gap-0 print:p-0"
         ref={workspaceRef}
         style={workspaceStyle}
       >
-        <section className="editor-pane grid min-h-[28rem] min-w-0 grid-rows-[auto_1fr] overflow-hidden rounded-[1.4rem] border border-white/10 bg-[rgba(8,11,15,0.72)] backdrop-blur-xl print:hidden lg:rounded-r-none">
+        <section className="editor-pane grid min-h-[28rem] min-w-0 grid-rows-[auto_1fr] overflow-hidden rounded-[1.4rem] border border-white/10 bg-[rgba(8,11,15,0.72)] backdrop-blur-xl print:hidden lg:min-h-0 lg:rounded-r-none">
           <div className="border-b border-white/8 px-5 py-4">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div>
@@ -1223,7 +1223,7 @@ function App() {
 
           <textarea
             aria-label="Markdown editor"
-            className="editor-input min-h-0 w-full resize-none border-0 bg-transparent px-5 py-5 text-[0.98rem] leading-7 text-[#f3efe6] outline-none placeholder:text-white/35"
+            className="editor-input min-h-0 w-full resize-none overflow-auto border-0 bg-transparent px-5 py-5 text-[0.98rem] leading-7 text-[#f3efe6] outline-none placeholder:text-white/35"
             ref={textareaRef}
             defaultValue={SAMPLE_MARKDOWN}
             onInput={handleEditorInput}
@@ -1243,7 +1243,7 @@ function App() {
           <span className="block h-20 w-[0.3rem] rounded-full bg-[linear-gradient(180deg,rgba(201,115,66,0.1),rgba(201,115,66,0.9),rgba(201,115,66,0.1))]" />
         </div>
 
-        <section className="preview-pane flex min-h-[32rem] min-w-0 flex-1 flex-col overflow-hidden rounded-[1.4rem] border border-white/10 bg-[rgba(8,11,15,0.72)] backdrop-blur-xl lg:rounded-l-none lg:border-l-0 print:min-h-0 print:rounded-none print:border-0 print:bg-transparent">
+        <section className="preview-pane flex min-h-[32rem] min-w-0 flex-1 flex-col overflow-hidden rounded-[1.4rem] border border-white/10 bg-[rgba(8,11,15,0.72)] backdrop-blur-xl lg:min-h-0 lg:rounded-l-none lg:border-l-0 print:min-h-0 print:rounded-none print:border-0 print:bg-transparent">
           <div className="preview-pane__header border-b border-white/8 px-5 py-4 print:hidden">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div>

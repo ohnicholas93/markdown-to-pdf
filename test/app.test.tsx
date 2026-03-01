@@ -80,6 +80,16 @@ describe('App', () => {
     expect(parseFloat(main.style.getPropertyValue('--editor-width'))).toBeCloseTo(28)
   })
 
+  test('uses pane-local scroll containers in the desktop workspace', () => {
+    const view = render(<App />)
+    const main = view.getByRole('main')
+    const editor = view.getByLabelText('Markdown editor')
+
+    expect(main.className).toContain('lg:h-[calc(100vh-5.5rem)]')
+    expect(main.className).toContain('lg:min-h-0')
+    expect(editor.className).toContain('overflow-auto')
+  })
+
   test('keeps the editor uncontrolled so native edits stay in sync', () => {
     const view = render(<App />)
     const editor = view.getByLabelText('Markdown editor') as HTMLTextAreaElement
