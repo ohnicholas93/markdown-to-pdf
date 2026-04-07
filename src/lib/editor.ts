@@ -266,6 +266,315 @@ export const countWords = (markdown: string) =>
 
 const UNDERLINE_PLACEHOLDER_PATTERN = /_{4,}/g
 const FENCED_CODE_BLOCK_PATTERN = /(```[\s\S]*?```|~~~[\s\S]*?~~~)/g
+const INLINE_CODE_PATTERN = /(`[^`\n]+`)/g
+const INLINE_OR_DISPLAY_MATH_PATTERN = /(\$\$[\s\S]*?\$\$|\$(?:\\.|[^$\n\\])+\$)/g
+const INLINE_LATEX_DELIMITER_PATTERN = /\\\(([\s\S]*?)\\\)/g
+const DISPLAY_LATEX_DELIMITER_PATTERN = /\\\[([\s\S]*?)\\\]/g
+const PROTECTED_MARKDOWN_PATTERN = /(`[^`\n]+`|<[^>]+>)/g
+const DISPLAY_MATH_ENVIRONMENTS = [
+  'equation',
+  'equation*',
+  'align',
+  'align*',
+  'aligned',
+  'aligned*',
+  'gather',
+  'gather*',
+  'multline',
+  'multline*',
+  'cases',
+  'matrix',
+  'bmatrix',
+  'Bmatrix',
+  'pmatrix',
+  'vmatrix',
+  'Vmatrix',
+  'smallmatrix',
+  'split',
+  'array',
+  'eqnarray',
+  'eqnarray*',
+] as const
+
+const escapeForRegex = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+
+const wrapStandaloneLatexEnvironments = (markdown: string) =>
+  DISPLAY_MATH_ENVIRONMENTS.reduce((current, environment) => {
+    const pattern = new RegExp(
+      String.raw`(^|\r?\n)([>\t ]*)\\begin\{${escapeForRegex(environment)}\}((?:\r?\n\2.*)*)\r?\n\2\\end\{${escapeForRegex(environment)}\}(?=\r?\n|$)`,
+      'g',
+    )
+
+    return current.replace(
+      pattern,
+      (
+        _match,
+        leadingWhitespace: string,
+        indent: string,
+        body: string,
+      ) =>
+        `${leadingWhitespace}${indent}$$\n${indent}\\begin{${environment}}${body}\n${indent}\\end{${environment}}\n${indent}$$`,
+    )
+  }, markdown)
+
+const normalizeInlineLatexMath = (markdown: string) =>
+  markdown.replace(INLINE_LATEX_DELIMITER_PATTERN, (_match, expression: string) => {
+    const trimmedExpression = expression.trim()
+    return `$${trimmedExpression}$`
+  })
+
+const createUniqueLinkPlaceholder = (
+  markdown: string,
+  existingTokens: string[],
+  index: number,
+) => {
+  let attempt = 0
+  let token = `\u0000LATEX_LINK_${index}\u0000`
+
+  while (markdown.includes(token) || existingTokens.includes(token)) {
+    attempt += 1
+    token = `\u0000LATEX_LINK_${index}_${attempt}\u0000`
+  }
+
+  return token
+}
+
+const findMatchingBracket = (markdown: string, startIndex: number) => {
+  let depth = 0
+
+  for (let index = startIndex; index < markdown.length; index += 1) {
+    const character = markdown[index]
+
+    if (character === '\\') {
+      index += 1
+      continue
+    }
+
+    if (character === '[') {
+      depth += 1
+      continue
+    }
+
+    if (character === ']') {
+      depth -= 1
+
+      if (depth === 0) {
+        return index
+      }
+    }
+  }
+
+  return -1
+}
+
+const findMatchingParen = (markdown: string, startIndex: number) => {
+  let depth = 0
+  let quote: '"' | "'" | null = null
+
+  for (let index = startIndex; index < markdown.length; index += 1) {
+    const character = markdown[index]
+
+    if (character === '\\') {
+      index += 1
+      continue
+    }
+
+    if (quote) {
+      if (character === quote) {
+        quote = null
+      }
+      continue
+    }
+
+    if (character === '"' || character === "'") {
+      quote = character
+      continue
+    }
+
+    if (character === '(') {
+      depth += 1
+      continue
+    }
+
+    if (character === ')') {
+      depth -= 1
+
+      if (depth === 0) {
+        return index
+      }
+    }
+  }
+
+  return -1
+}
+
+const replaceReferenceDefinitionsWithPlaceholders = (
+  markdown: string,
+  placeholders: Map<string, string>,
+) => {
+  const lines = markdown.split(/\r?\n/)
+  const output: string[] = []
+  let index = 0
+
+  while (index < lines.length) {
+    const line = lines[index]
+
+    if (/^[ \t]{0,3}\[[^\]]+]:/.test(line)) {
+      const definitionMatch = line.match(/^([ \t]{0,3})\[([^\]]+)]:([\s\S]*)$/)
+      const definitionLines = [
+        definitionMatch
+          ? `${definitionMatch[1]}[${normalizeInlineLatexMath(definitionMatch[2])}]:${definitionMatch[3]}`
+          : line,
+      ]
+      let nextIndex = index + 1
+
+      while (nextIndex < lines.length && /^[ \t]+/.test(lines[nextIndex])) {
+        definitionLines.push(lines[nextIndex])
+        nextIndex += 1
+      }
+
+      const joined = definitionLines.join('\n')
+      const token = createUniqueLinkPlaceholder(markdown, [...placeholders.keys()], placeholders.size)
+      placeholders.set(token, joined)
+      output.push(token)
+      index = nextIndex
+      continue
+    }
+
+    output.push(line)
+    index += 1
+  }
+
+  return output.join('\n')
+}
+
+const replaceMarkdownLinksAndImagesWithPlaceholders = (
+  markdown: string,
+  placeholders: Map<string, string>,
+) => {
+  let output = ''
+
+  for (let index = 0; index < markdown.length; index += 1) {
+    const imageMarker = markdown[index] === '!' && markdown[index + 1] === '[' ? '!' : ''
+    const labelStart = imageMarker ? index + 1 : index
+
+    if (markdown[labelStart] !== '[') {
+      output += markdown[index]
+      continue
+    }
+
+    const labelEnd = findMatchingBracket(markdown, labelStart)
+
+    if (labelEnd === -1) {
+      output += markdown[index]
+      continue
+    }
+
+    const label = markdown.slice(labelStart + 1, labelEnd)
+    const nextCharacter = markdown[labelEnd + 1]
+
+    if (nextCharacter === '(') {
+      const metadataEnd = findMatchingParen(markdown, labelEnd + 1)
+
+      if (metadataEnd === -1) {
+        output += markdown[index]
+        continue
+      }
+
+      const metadata = markdown.slice(labelEnd + 1, metadataEnd + 1)
+      const token = createUniqueLinkPlaceholder(markdown, [...placeholders.keys()], placeholders.size)
+      placeholders.set(token, `${imageMarker}[${normalizeInlineLatexMath(label)}]${metadata}`)
+      output += token
+      index = metadataEnd
+      continue
+    }
+
+    if (nextCharacter === '[') {
+      const referenceEnd = findMatchingBracket(markdown, labelEnd + 1)
+
+      if (referenceEnd === -1) {
+        output += markdown[index]
+        continue
+      }
+
+      const referenceLabel = markdown.slice(labelEnd + 2, referenceEnd)
+      const token = createUniqueLinkPlaceholder(markdown, [...placeholders.keys()], placeholders.size)
+      placeholders.set(
+        token,
+        `${imageMarker}[${normalizeInlineLatexMath(label)}][${normalizeInlineLatexMath(referenceLabel)}]`,
+      )
+      output += token
+      index = referenceEnd
+      continue
+    }
+
+    output += markdown[index]
+  }
+
+  return output
+}
+
+const normalizeLatexMathInText = (markdown: string) =>
+  wrapStandaloneLatexEnvironments(
+    markdown
+      .replace(DISPLAY_LATEX_DELIMITER_PATTERN, (_match, expression: string) => {
+        const trimmedExpression = expression.trim()
+        return `\n\n$$\n${trimmedExpression}\n$$\n\n`
+      })
+      .replace(INLINE_LATEX_DELIMITER_PATTERN, (_match, expression: string) => {
+        const trimmedExpression = expression.trim()
+        return `$${trimmedExpression}$`
+      }),
+  )
+
+const protectMarkdownLinksAndDefinitions = (markdown: string) => {
+  const placeholders = new Map<string, string>()
+  const definitionsProtected = replaceReferenceDefinitionsWithPlaceholders(markdown, placeholders)
+  const stripped = replaceMarkdownLinksAndImagesWithPlaceholders(definitionsProtected, placeholders)
+
+  return { placeholders, stripped }
+}
+
+const restoreMarkdownPlaceholders = (
+  markdown: string,
+  placeholders: Map<string, string>,
+) =>
+  [...placeholders.entries()].reduce(
+    (current, [token, value]) => current.replaceAll(token, value),
+    markdown,
+  )
+
+const normalizeLatexMathOutsideLinkDestinations = (markdown: string) => {
+  const { placeholders, stripped } = protectMarkdownLinksAndDefinitions(markdown)
+
+  return restoreMarkdownPlaceholders(normalizeLatexMathInText(stripped), placeholders)
+}
+
+const normalizeLatexMath = (markdown: string) =>
+  markdown
+    .split(INLINE_CODE_PATTERN)
+    .map((part) => {
+      if (INLINE_CODE_PATTERN.test(part)) {
+        INLINE_CODE_PATTERN.lastIndex = 0
+        return part
+      }
+
+      const { placeholders, stripped } = protectMarkdownLinksAndDefinitions(part)
+      const normalized = stripped
+        .split(PROTECTED_MARKDOWN_PATTERN)
+        .map((segment) => {
+          if (PROTECTED_MARKDOWN_PATTERN.test(segment)) {
+            PROTECTED_MARKDOWN_PATTERN.lastIndex = 0
+            return segment
+          }
+
+          return normalizeLatexMathInText(segment)
+        })
+        .join('')
+
+      return restoreMarkdownPlaceholders(normalized, placeholders)
+    })
+    .join('')
 
 export const prepareMarkdownForRender = (markdown: string) =>
   markdown
@@ -275,11 +584,20 @@ export const prepareMarkdownForRender = (markdown: string) =>
         return segment
       }
 
-      return segment.replace(UNDERLINE_PLACEHOLDER_PATTERN, (match) => {
-        const widthCh = Math.max(match.length, 4)
+      return normalizeLatexMath(segment)
+        .split(INLINE_OR_DISPLAY_MATH_PATTERN)
+        .map((mathOrText) => {
+          if (mathOrText.startsWith('$')) {
+            return mathOrText
+          }
 
-        return `<span class="signature-line" aria-hidden="true" style="width: ${widthCh}ch"></span>`
-      })
+          return mathOrText.replace(UNDERLINE_PLACEHOLDER_PATTERN, (match) => {
+            const widthCh = Math.max(match.length, 4)
+
+            return `<span class="signature-line" aria-hidden="true" style="width: ${widthCh}ch"></span>`
+          })
+        })
+        .join('')
     })
     .join('')
 

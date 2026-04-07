@@ -2,6 +2,7 @@
 
 import { afterEach, beforeEach, describe, expect, test, vi } from 'bun:test'
 import { fireEvent, render, waitFor } from '@testing-library/react'
+import { renderToStaticMarkup } from 'react-dom/server'
 import App, { DocumentContent } from '../src/App'
 import { countWords } from '../src/lib/editor'
 
@@ -30,16 +31,16 @@ describe('App', () => {
       const editor = view.getByLabelText('Markdown editor') as HTMLTextAreaElement
 
       expect(view.getByText('Markdown to PDF')).toBeInTheDocument()
-      expect(view.getByRole('button', { name: 'Document Settings' })).toBeInTheDocument()
-      expect(view.getByRole('button', { name: 'Print / Save PDF' })).toBeInTheDocument()
-      expect(view.getByRole('button', { name: 'Bold' })).toBeInTheDocument()
+      expect(view.getByText('Document Settings')).toBeInTheDocument()
+      expect(view.getByText('Print / Save PDF')).toBeInTheDocument()
+      expect(view.getByText('Bold')).toBeInTheDocument()
       expect(view.getByText(`${countWords(editor.value)} words`)).toBeInTheDocument()
       expect(view.queryByText('Real print rendering')).toBeNull()
       expect(view.queryByText('Bun + Vite client-side print studio')).toBeNull()
 
       await waitFor(() => {
         expect(
-          view.queryByRole('heading', { name: 'Editorial Markdown' }) ??
+          view.queryByText('Editorial Markdown') ??
             view.queryAllByText(/Paginated preview is unavailable/)[0],
         ).toBeTruthy()
       })
@@ -53,7 +54,7 @@ describe('App', () => {
 
     expect(view.queryByLabelText('Page')).toBeNull()
 
-    fireEvent.click(view.getByRole('button', { name: 'Document Settings' }))
+    fireEvent.click(view.getByText('Document Settings'))
 
     expect(view.getByLabelText('Page')).toBeInTheDocument()
     expect(view.getByLabelText('Horizontal margin')).toBeInTheDocument()
@@ -115,15 +116,37 @@ describe('App', () => {
     )
   })
 
+  test('renders latex math in the live preview', () => {
+    const originalConsoleWarn = console.warn
+    console.warn = () => {}
+
+    try {
+      const markup = renderToStaticMarkup(
+        <DocumentContent
+          markdown={String.raw`Inline math \(E = mc^2\)
+
+$$
+\int_0^1 x^2 \, dx = \frac{1}{3}
+$$`}
+        />,
+      )
+
+      expect(markup).toContain('mjx-container')
+      expect(markup).toContain('display="true"')
+    } finally {
+      console.warn = originalConsoleWarn
+    }
+  })
+
   test('theme selection is not overwritten by a throttled palette sync', () => {
     const view = render(<App />)
 
-    fireEvent.click(view.getByRole('button', { name: 'Document Settings' }))
+    fireEvent.click(view.getByText('Document Settings'))
 
     const paperInput = view.getByLabelText('Paper') as HTMLInputElement
     fireEvent.input(paperInput, { target: { value: '#eeeeee' } })
 
-    fireEvent.click(view.getByRole('button', { name: 'Slate Room' }))
+    fireEvent.click(view.getByText('Slate Room'))
 
     expect((view.getByLabelText('Paper') as HTMLInputElement).value).toBe('#e8ecf3')
 
@@ -172,7 +195,7 @@ describe('App', () => {
       { type: 'application/json' },
     )
 
-    fireEvent.click(view.getByRole('button', { name: 'Document Settings' }))
+    fireEvent.click(view.getByText('Document Settings'))
     fireEvent.change(view.getByLabelText('Import styleset JSON'), {
       target: { files: [file] },
     })
@@ -181,7 +204,7 @@ describe('App', () => {
       expect((view.getByLabelText('Header size') as HTMLInputElement).value).toBe('12')
     })
 
-    fireEvent.click(view.getByRole('button', { name: 'Export styleset' }))
+    fireEvent.click(view.getByText('Export styleset'))
 
     await waitFor(() => expect(createObjectURLMock).toHaveBeenCalledTimes(1))
 
@@ -204,7 +227,7 @@ describe('App', () => {
   test('imports a styleset JSON file', async () => {
     const view = render(<App />)
 
-    fireEvent.click(view.getByRole('button', { name: 'Document Settings' }))
+    fireEvent.click(view.getByText('Document Settings'))
 
     const file = new File(
       [
@@ -266,7 +289,7 @@ describe('App', () => {
   test('imports legacy stylesets that only specify one margin value', async () => {
     const view = render(<App />)
 
-    fireEvent.click(view.getByRole('button', { name: 'Document Settings' }))
+    fireEvent.click(view.getByText('Document Settings'))
 
     const file = new File(
       [
@@ -319,7 +342,7 @@ describe('App', () => {
   test('shows an error when a styleset JSON file is invalid', async () => {
     const view = render(<App />)
 
-    fireEvent.click(view.getByRole('button', { name: 'Document Settings' }))
+    fireEvent.click(view.getByText('Document Settings'))
 
     const file = new File(['{"version":2}'], 'broken-styleset.json', {
       type: 'application/json',

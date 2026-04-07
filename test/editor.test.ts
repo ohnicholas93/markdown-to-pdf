@@ -166,6 +166,153 @@ describe('editor helpers', () => {
     expect(next).toContain('```txt\nkeep ________ literal\n```')
   })
 
+  test('normalizes common latex delimiters and environments for rendering', () => {
+    const next = prepareMarkdownForRender(
+      String.raw`Inline \(a^2 + b^2 = c^2\)
+
+\[
+\frac{1}{2}
+\]
+
+\begin{align}
+f(x) &= x^2 \\
+g(x) &= x^3
+\end{align}`,
+    )
+
+    expect(next).toContain('$a^2 + b^2 = c^2$')
+    expect(next).toContain('$$\n\\frac{1}{2}\n$$')
+    expect(next).toContain(
+      '$$\n\\begin{align}\nf(x) &= x^2 \\\\\ng(x) &= x^3\n\\end{align}\n$$',
+    )
+  })
+
+  test('does not rewrite escaped latex delimiters inside link destinations or html attributes', () => {
+    const next = prepareMarkdownForRender(
+      String.raw`[x](https://example.com/\(foo\))
+
+<span data-target="\[bar\]">safe</span>
+
+\(z\)`,
+    )
+
+    expect(next).toContain(String.raw`[x](https://example.com/\(foo\))`)
+    expect(next).toContain(String.raw`<span data-target="\[bar\]">safe</span>`)
+    expect(next).toContain('$z$')
+  })
+
+  test('normalizes latex inside link labels while preserving destinations', () => {
+    const next = prepareMarkdownForRender(String.raw`[see \(x\)](https://example.com/\(foo\))`)
+
+    expect(next).toContain(String.raw`[see $x$](https://example.com/\(foo\))`)
+  })
+
+  test('preserves inline link titles and destinations while normalizing the visible label', () => {
+    const next = prepareMarkdownForRender(
+      String.raw`[see \(x\)](https://example.com/\(foo\) "title \(bar\)")`,
+    )
+
+    expect(next).toBe(String.raw`[see $x$](https://example.com/\(foo\) "title \(bar\)")`)
+  })
+
+  test('preserves angle-bracket inline destinations with titles while normalizing the visible label', () => {
+    const next = prepareMarkdownForRender(
+      String.raw`[see \(x\)](<https://example.com/\(foo\)> "title \(bar\)")`,
+    )
+
+    expect(next).toBe(String.raw`[see $x$](<https://example.com/\(foo\)> "title \(bar\)")`)
+  })
+
+  test('preserves reference-style link definitions while normalizing the visible label', () => {
+    const next = prepareMarkdownForRender(
+      String.raw`[see \(x\)][ref]
+
+[ref]: https://example.com/\(foo\) "title \(bar\)"`,
+    )
+
+    expect(next).toBe(
+      String.raw`[see $x$][ref]
+
+[ref]: https://example.com/\(foo\) "title \(bar\)"`,
+    )
+  })
+
+  test('keeps shortcut reference links aligned with normalized definition labels', () => {
+    const next = prepareMarkdownForRender(
+      String.raw`[see \(x\)]
+
+[see \(x\)]: https://example.com/\(foo\)`,
+    )
+
+    expect(next).toBe(
+      String.raw`[see $x$]
+
+[see $x$]: https://example.com/\(foo\)`,
+    )
+  })
+
+  test('keeps explicit reference identifiers aligned with normalized definition labels', () => {
+    const next = prepareMarkdownForRender(
+      String.raw`[see \(x\)][ref \(x\)]
+
+[ref \(x\)]: https://example.com/\(foo\)`,
+    )
+
+    expect(next).toBe(
+      String.raw`[see $x$][ref $x$]
+
+[ref $x$]: https://example.com/\(foo\)`,
+    )
+  })
+
+  test('does not rewrite literal placeholder-looking text while restoring links', () => {
+    const next = prepareMarkdownForRender(
+      String.raw`@@LATEX_LINK_0@@ [see \(x\)](https://example.com)`,
+    )
+
+    expect(next).toBe(String.raw`@@LATEX_LINK_0@@ [see $x$](https://example.com)`)
+  })
+
+  test('preserves indentation when wrapping block math environments', () => {
+    const next = prepareMarkdownForRender(
+      String.raw`- item
+
+  \begin{align}
+  f(x) &= x^2 \\
+  g(x) &= x^3
+  \end{align}`,
+    )
+
+    expect(next).toContain(
+      String.raw`  $$
+  \begin{align}
+  f(x) &= x^2 \\
+  g(x) &= x^3
+  \end{align}
+  $$`,
+    )
+  })
+
+  test('preserves blockquote structure when wrapping block math environments', () => {
+    const next = prepareMarkdownForRender(
+      String.raw`> quote
+>
+>   \begin{align}
+>   a &= b \\
+>   c &= d
+>   \end{align}`,
+    )
+
+    expect(next).toContain(
+      String.raw`>   $$
+>   \begin{align}
+>   a &= b \\
+>   c &= d
+>   \end{align}
+>   $$`,
+    )
+  })
+
   test('serializes and parses stylesets as JSON', () => {
     const json = serializeStylesetState(
       createStylesetState({

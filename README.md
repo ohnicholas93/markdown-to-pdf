@@ -5,6 +5,7 @@ Markdown to PDF is a browser-based editor for writing markdown, previewing fully
 ## Features
 
 - Live markdown editing with instant preview updates
+- LaTeX math rendering for inline and display equations
 - Real paged layout rendering powered by Paged.js
 - Typography, theme, margin, and page chrome controls
 - Print-to-PDF workflow that stays selectable and searchable
@@ -47,9 +48,10 @@ bun run preview
 ## Usage
 
 1. Write or paste markdown into the editor.
-2. Adjust page size, typography, colors, margins, and running header/footer settings.
-3. Review the paginated preview.
-4. Use `Print / Save PDF` to export through the browser print dialog.
+2. Add equations with `$...$`, `$$...$$`, `\(...\)`, or `\[...\]`.
+3. Adjust page size, typography, colors, margins, and running header/footer settings.
+4. Review the paginated preview.
+5. Use `Print / Save PDF` to export through the browser print dialog.
 
 ## Assets
 

@@ -247,6 +247,28 @@ button:not([disabled]) {
   background: color-mix(in srgb, var(--page-accent) 12%, white 72%);
 }
 
+.markdown-body mjx-container {
+  color: inherit;
+}
+
+.markdown-body mjx-container[jax='SVG'] {
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.markdown-body mjx-container[jax='SVG'][display='true'] {
+  display: block;
+  margin: 0 0 var(--page-block-spacing);
+  break-inside: avoid;
+}
+
+.markdown-body mjx-container[jax='SVG'] > svg {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
+
 @media (min-width: 1024px) {
   .editor-pane {
     width: var(--editor-width);

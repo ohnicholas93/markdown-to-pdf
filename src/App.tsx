@@ -3,8 +3,10 @@ import { memo, useDeferredValue, useEffect, useEffectEvent, useRef, useState } f
 import { renderToStaticMarkup } from 'react-dom/server'
 import type { Previewer as PagedPreviewer } from 'pagedjs'
 import ReactMarkdown from 'react-markdown'
+import rehypeMathjax from 'rehype-mathjax'
 import rehypeRaw from 'rehype-raw'
 import remarkGfm from 'remark-gfm'
+import remarkMath from 'remark-math'
 import './App.css'
 import {
   BODY_FONT_PRESETS,
@@ -137,7 +139,10 @@ export function DocumentContent({ markdown }: { markdown: string }) {
   return (
     <div className="document-root">
       <article className="markdown-body">
-        <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]}>
+        <ReactMarkdown
+          remarkPlugins={[remarkGfm, remarkMath]}
+          rehypePlugins={[rehypeRaw, rehypeMathjax]}
+        >
           {renderedMarkdown || '*Start typing markdown to see the preview.*'}
         </ReactMarkdown>
       </article>
@@ -1194,7 +1199,11 @@ function App() {
                   Markdown
                 </h2>
                 <p className="mt-1 text-sm text-[var(--chrome-muted)]">
-                  Edit the source and keep the preview in sync.
+                  Edit the source and keep the preview in sync. LaTeX math supports
+                  <code className="ml-1">$...$</code>,
+                  <code className="ml-1">$$...$$</code>,
+                  <code className="ml-1">\(...\)</code>, and
+                  <code className="ml-1">\[...\]</code>.
                 </p>
               </div>
               <div className="flex flex-wrap gap-2 sm:justify-end">
