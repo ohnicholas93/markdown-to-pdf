@@ -265,12 +265,6 @@ export const countWords = (markdown: string) =>
   markdown.trim().split(/\s+/).filter(Boolean).length
 
 const UNDERLINE_PLACEHOLDER_PATTERN = /_{4,}/g
-const FENCED_CODE_BLOCK_PATTERN = /(```[\s\S]*?```|~~~[\s\S]*?~~~)/g
-const INLINE_CODE_PATTERN = /(`[^`\n]+`)/g
-const INLINE_OR_DISPLAY_MATH_PATTERN = /(\$\$[\s\S]*?\$\$|\$(?:\\.|[^$\n\\])+\$)/g
-const INLINE_LATEX_DELIMITER_PATTERN = /\\\(([\s\S]*?)\\\)/g
-const DISPLAY_LATEX_DELIMITER_PATTERN = /\\\[([\s\S]*?)\\\]/g
-const PROTECTED_MARKDOWN_PATTERN = /(`[^`\n]+`|<[^>]+>)/g
 const DISPLAY_MATH_ENVIRONMENTS = [
   'equation',
   'equation*',
@@ -296,310 +290,373 @@ const DISPLAY_MATH_ENVIRONMENTS = [
   'eqnarray*',
 ] as const
 
-const escapeForRegex = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+const DISPLAY_MATH_ENVIRONMENT_ALTERNATION = DISPLAY_MATH_ENVIRONMENTS.map((environment) =>
+  environment.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'),
+).join('|')
+const DISPLAY_MATH_DELIMITER_PATTERN = /^\\\[([\s\S]*?)\\\]$/
+const DISPLAY_MATH_ENVIRONMENT_PATTERN = new RegExp(
+  String.raw`^\\begin\{(${DISPLAY_MATH_ENVIRONMENT_ALTERNATION})\}[\s\S]*\\end\{\1\}$`,
+)
+const ESCAPABLE_MARKDOWN_CHARACTER_PATTERN = /[!-/:-@[-`{-~]/
+const HTML_ENTITY_PATTERN = /^&(?:#x[0-9a-f]+|#[0-9]+|[a-z][a-z0-9]+);/i
+let htmlEntityDecodeElement: HTMLTextAreaElement | null = null
 
-const wrapStandaloneLatexEnvironments = (markdown: string) =>
-  DISPLAY_MATH_ENVIRONMENTS.reduce((current, environment) => {
-    const pattern = new RegExp(
-      String.raw`(^|\r?\n)([>\t ]*)\\begin\{${escapeForRegex(environment)}\}((?:\r?\n\2.*)*)\r?\n\2\\end\{${escapeForRegex(environment)}\}(?=\r?\n|$)`,
-      'g',
-    )
+type MarkdownOffset = {
+  offset?: number | null
+}
 
-    return current.replace(
-      pattern,
-      (
-        _match,
-        leadingWhitespace: string,
-        indent: string,
-        body: string,
-      ) =>
-        `${leadingWhitespace}${indent}$$\n${indent}\\begin{${environment}}${body}\n${indent}\\end{${environment}}\n${indent}$$`,
-    )
-  }, markdown)
+type MarkdownPosition = {
+  start?: MarkdownOffset | null
+  end?: MarkdownOffset | null
+}
 
-const normalizeInlineLatexMath = (markdown: string) =>
-  markdown.replace(INLINE_LATEX_DELIMITER_PATTERN, (_match, expression: string) => {
-    const trimmedExpression = expression.trim()
-    return `$${trimmedExpression}$`
+type MarkdownNode = {
+  children?: MarkdownNode[]
+  position?: MarkdownPosition | null
+  type: string
+  value?: string
+}
+
+const getNodeSource = (markdown: string, node: MarkdownNode) => {
+  const startOffset = node.position?.start?.offset
+  const endOffset = node.position?.end?.offset
+
+  if (typeof startOffset !== 'number' || typeof endOffset !== 'number') {
+    return null
+  }
+
+  return markdown.slice(startOffset, endOffset)
+}
+
+const createTextNode = (value: string): MarkdownNode => ({
+  type: 'text',
+  value,
+})
+
+const createSignatureLineNode = (widthCh: number): MarkdownNode => ({
+  type: 'html',
+  value: `<span class="signature-line" aria-hidden="true" style="width: ${widthCh}ch"></span>`,
+})
+
+const createInlineMathNode = (value: string): MarkdownNode => ({
+  type: 'inlineMath',
+  value,
+})
+
+const createDisplayMathNode = (value: string): MarkdownNode => ({
+  type: 'math',
+  value,
+})
+
+const splitPlainTextIntoNodes = (value: string) => {
+  if (value.length === 0) {
+    return []
+  }
+
+  const parts: MarkdownNode[] = []
+  let cursor = 0
+
+  value.replace(UNDERLINE_PLACEHOLDER_PATTERN, (match, offset: number) => {
+    if (offset > cursor) {
+      parts.push(createTextNode(value.slice(cursor, offset)))
+    }
+
+    parts.push(createSignatureLineNode(Math.max(match.length, 4)))
+    cursor = offset + match.length
+    return match
   })
 
-const createUniqueLinkPlaceholder = (
-  markdown: string,
-  existingTokens: string[],
-  index: number,
-) => {
-  let attempt = 0
-  let token = `\u0000LATEX_LINK_${index}\u0000`
-
-  while (markdown.includes(token) || existingTokens.includes(token)) {
-    attempt += 1
-    token = `\u0000LATEX_LINK_${index}_${attempt}\u0000`
+  if (cursor < value.length) {
+    parts.push(createTextNode(value.slice(cursor)))
   }
-
-  return token
+  return parts.length > 0 ? parts : [createTextNode(value)]
 }
 
-const findMatchingBracket = (markdown: string, startIndex: number) => {
-  let depth = 0
+const decodeHtmlEntity = (entity: string) => {
+  if (entity.startsWith('&#x') || entity.startsWith('&#X')) {
+    const codePoint = Number.parseInt(entity.slice(3, -1), 16)
+    return Number.isFinite(codePoint) ? String.fromCodePoint(codePoint) : null
+  }
 
-  for (let index = startIndex; index < markdown.length; index += 1) {
-    const character = markdown[index]
+  if (entity.startsWith('&#')) {
+    const codePoint = Number.parseInt(entity.slice(2, -1), 10)
+    return Number.isFinite(codePoint) ? String.fromCodePoint(codePoint) : null
+  }
 
-    if (character === '\\') {
-      index += 1
-      continue
-    }
+  if (typeof document === 'undefined') {
+    return null
+  }
 
-    if (character === '[') {
-      depth += 1
-      continue
-    }
+  htmlEntityDecodeElement ??= document.createElement('textarea')
+  htmlEntityDecodeElement.innerHTML = entity
 
-    if (character === ']') {
-      depth -= 1
+  const decoded = htmlEntityDecodeElement.value
 
-      if (depth === 0) {
-        return index
+  return decoded === entity ? null : decoded
+}
+
+const advanceValueIndexThroughRaw = (raw: string, value: string, startIndex: number) => {
+  let rawIndex = 0
+  let valueIndex = startIndex
+
+  while (rawIndex < raw.length) {
+    const entityMatch = raw.slice(rawIndex).match(HTML_ENTITY_PATTERN)
+
+    if (entityMatch) {
+      const decoded = decodeHtmlEntity(entityMatch[0])
+
+      if (decoded !== null && value.startsWith(decoded, valueIndex)) {
+        rawIndex += entityMatch[0].length
+        valueIndex += decoded.length
+        continue
       }
+    }
+
+    if (
+      raw[rawIndex] === '\\' &&
+      rawIndex + 1 < raw.length &&
+      ESCAPABLE_MARKDOWN_CHARACTER_PATTERN.test(raw[rawIndex + 1])
+    ) {
+      if (value[valueIndex] !== raw[rawIndex + 1]) {
+        return null
+      }
+
+      rawIndex += 2
+      valueIndex += 1
+      continue
+    }
+
+    if (raw[rawIndex] === '\r') {
+      rawIndex += 1
+      continue
+    }
+
+    if (value[valueIndex] !== raw[rawIndex]) {
+      return null
+    }
+
+    rawIndex += 1
+    valueIndex += 1
+  }
+
+  return valueIndex
+}
+
+const isEscapedDelimiter = (value: string, index: number) => {
+  let backslashCount = 0
+
+  for (let cursor = index - 1; cursor >= 0 && value[cursor] === '\\'; cursor -= 1) {
+    backslashCount += 1
+  }
+
+  return backslashCount % 2 === 1
+}
+
+const findInlineLatexClose = (raw: string, startIndex: number) => {
+  for (let index = startIndex; index < raw.length - 1; index += 1) {
+    if (raw[index] === '\\' && raw[index + 1] === ')' && !isEscapedDelimiter(raw, index)) {
+      return index
     }
   }
 
   return -1
 }
 
-const findMatchingParen = (markdown: string, startIndex: number) => {
-  let depth = 0
-  let quote: '"' | "'" | null = null
+const normalizeParagraphRawSource = (rawSource: string) => {
+  const normalizedLines = rawSource.replace(/\r\n/g, '\n').split('\n').map((line) => {
+    let nextLine = line
 
-  for (let index = startIndex; index < markdown.length; index += 1) {
-    const character = markdown[index]
-
-    if (character === '\\') {
-      index += 1
-      continue
+    while (/^[ \t]{0,3}> ?/.test(nextLine)) {
+      nextLine = nextLine.replace(/^[ \t]{0,3}> ?/, '')
     }
 
-    if (quote) {
-      if (character === quote) {
-        quote = null
-      }
-      continue
-    }
+    return nextLine
+  })
+  const continuationLines = normalizedLines
+    .slice(1)
+    .filter((line) => line.trim().length > 0)
+    .map((line) => line.match(/^[ \t]*/)?.[0].length ?? 0)
+  const commonContinuationIndent =
+    continuationLines.length > 0 ? Math.min(...continuationLines) : 0
 
-    if (character === '"' || character === "'") {
-      quote = character
-      continue
-    }
-
-    if (character === '(') {
-      depth += 1
-      continue
-    }
-
-    if (character === ')') {
-      depth -= 1
-
-      if (depth === 0) {
-        return index
-      }
-    }
-  }
-
-  return -1
+  return normalizedLines
+    .map((line, index) => (index === 0 ? line : line.slice(commonContinuationIndent)))
+    .join('\n')
 }
 
-const replaceReferenceDefinitionsWithPlaceholders = (
-  markdown: string,
-  placeholders: Map<string, string>,
-) => {
-  const lines = markdown.split(/\r?\n/)
-  const output: string[] = []
-  let index = 0
+const transformTextNode = (node: MarkdownNode, markdown: string) => {
+  const rawSource = getNodeSource(markdown, node)
+  const textValue = node.value ?? ''
 
-  while (index < lines.length) {
-    const line = lines[index]
-
-    if (/^[ \t]{0,3}\[[^\]]+]:/.test(line)) {
-      const definitionMatch = line.match(/^([ \t]{0,3})\[([^\]]+)]:([\s\S]*)$/)
-      const definitionLines = [
-        definitionMatch
-          ? `${definitionMatch[1]}[${normalizeInlineLatexMath(definitionMatch[2])}]:${definitionMatch[3]}`
-          : line,
-      ]
-      let nextIndex = index + 1
-
-      while (nextIndex < lines.length && /^[ \t]+/.test(lines[nextIndex])) {
-        definitionLines.push(lines[nextIndex])
-        nextIndex += 1
-      }
-
-      const joined = definitionLines.join('\n')
-      const token = createUniqueLinkPlaceholder(markdown, [...placeholders.keys()], placeholders.size)
-      placeholders.set(token, joined)
-      output.push(token)
-      index = nextIndex
-      continue
-    }
-
-    output.push(line)
-    index += 1
+  if (textValue.length === 0) {
+    return [node]
   }
 
-  return output.join('\n')
-}
+  if (rawSource === null || !rawSource.includes('\\(')) {
+    return splitPlainTextIntoNodes(textValue)
+  }
 
-const replaceMarkdownLinksAndImagesWithPlaceholders = (
-  markdown: string,
-  placeholders: Map<string, string>,
-) => {
-  let output = ''
+  const transformedChildren: MarkdownNode[] = []
+  let rawCursor = 0
+  let rawSegmentStart = 0
+  let valueCursor = 0
+  let valueSegmentStart = 0
+  let foundInlineMath = false
 
-  for (let index = 0; index < markdown.length; index += 1) {
-    const imageMarker = markdown[index] === '!' && markdown[index + 1] === '[' ? '!' : ''
-    const labelStart = imageMarker ? index + 1 : index
+  while (rawCursor < rawSource.length - 1) {
+    if (
+      rawSource[rawCursor] === '\\' &&
+      rawSource[rawCursor + 1] === '(' &&
+      !isEscapedDelimiter(rawSource, rawCursor)
+    ) {
+      const closingIndex = findInlineLatexClose(rawSource, rawCursor + 2)
 
-    if (markdown[labelStart] !== '[') {
-      output += markdown[index]
-      continue
-    }
-
-    const labelEnd = findMatchingBracket(markdown, labelStart)
-
-    if (labelEnd === -1) {
-      output += markdown[index]
-      continue
-    }
-
-    const label = markdown.slice(labelStart + 1, labelEnd)
-    const nextCharacter = markdown[labelEnd + 1]
-
-    if (nextCharacter === '(') {
-      const metadataEnd = findMatchingParen(markdown, labelEnd + 1)
-
-      if (metadataEnd === -1) {
-        output += markdown[index]
+      if (closingIndex === -1) {
+        rawCursor += 1
         continue
       }
 
-      const metadata = markdown.slice(labelEnd + 1, metadataEnd + 1)
-      const token = createUniqueLinkPlaceholder(markdown, [...placeholders.keys()], placeholders.size)
-      placeholders.set(token, `${imageMarker}[${normalizeInlineLatexMath(label)}]${metadata}`)
-      output += token
-      index = metadataEnd
-      continue
-    }
-
-    if (nextCharacter === '[') {
-      const referenceEnd = findMatchingBracket(markdown, labelEnd + 1)
-
-      if (referenceEnd === -1) {
-        output += markdown[index]
-        continue
-      }
-
-      const referenceLabel = markdown.slice(labelEnd + 2, referenceEnd)
-      const token = createUniqueLinkPlaceholder(markdown, [...placeholders.keys()], placeholders.size)
-      placeholders.set(
-        token,
-        `${imageMarker}[${normalizeInlineLatexMath(label)}][${normalizeInlineLatexMath(referenceLabel)}]`,
+      const plainValueEnd = advanceValueIndexThroughRaw(
+        rawSource.slice(rawSegmentStart, rawCursor),
+        textValue,
+        valueSegmentStart,
       )
-      output += token
-      index = referenceEnd
+      const mathValueEnd = advanceValueIndexThroughRaw(
+        rawSource.slice(rawCursor, closingIndex + 2),
+        textValue,
+        plainValueEnd ?? valueSegmentStart,
+      )
+
+      if (plainValueEnd === null || mathValueEnd === null) {
+        rawCursor += 1
+        continue
+      }
+
+      const plainValue = textValue.slice(valueSegmentStart, plainValueEnd)
+      transformedChildren.push(...splitPlainTextIntoNodes(plainValue))
+      transformedChildren.push(
+        createInlineMathNode(rawSource.slice(rawCursor + 2, closingIndex).trim()),
+      )
+
+      rawCursor = closingIndex + 2
+      rawSegmentStart = rawCursor
+      valueCursor = mathValueEnd
+      valueSegmentStart = valueCursor
+      foundInlineMath = true
       continue
     }
 
-    output += markdown[index]
+    rawCursor += 1
   }
 
-  return output
-}
+  if (!foundInlineMath) {
+    return splitPlainTextIntoNodes(textValue)
+  }
 
-const normalizeLatexMathInText = (markdown: string) =>
-  wrapStandaloneLatexEnvironments(
-    markdown
-      .replace(DISPLAY_LATEX_DELIMITER_PATTERN, (_match, expression: string) => {
-        const trimmedExpression = expression.trim()
-        return `\n\n$$\n${trimmedExpression}\n$$\n\n`
-      })
-      .replace(INLINE_LATEX_DELIMITER_PATTERN, (_match, expression: string) => {
-        const trimmedExpression = expression.trim()
-        return `$${trimmedExpression}$`
-      }),
+  const trailingValueEnd = advanceValueIndexThroughRaw(
+    rawSource.slice(rawSegmentStart),
+    textValue,
+    valueSegmentStart,
   )
 
-const protectMarkdownLinksAndDefinitions = (markdown: string) => {
-  const placeholders = new Map<string, string>()
-  const definitionsProtected = replaceReferenceDefinitionsWithPlaceholders(markdown, placeholders)
-  const stripped = replaceMarkdownLinksAndImagesWithPlaceholders(definitionsProtected, placeholders)
+  if (trailingValueEnd === null) {
+    return splitPlainTextIntoNodes(textValue)
+  }
 
-  return { placeholders, stripped }
+  transformedChildren.push(...splitPlainTextIntoNodes(textValue.slice(valueSegmentStart, trailingValueEnd)))
+
+  return transformedChildren
 }
 
-const restoreMarkdownPlaceholders = (
-  markdown: string,
-  placeholders: Map<string, string>,
-) =>
-  [...placeholders.entries()].reduce(
-    (current, [token, value]) => current.replaceAll(token, value),
-    markdown,
-  )
+const buildParagraphDisplayMathNode = (node: MarkdownNode, markdown: string) => {
+  if (!node.children || node.children.length !== 1 || node.children[0].type !== 'text') {
+    return null
+  }
 
-const normalizeLatexMathOutsideLinkDestinations = (markdown: string) => {
-  const { placeholders, stripped } = protectMarkdownLinksAndDefinitions(markdown)
+  const rawSource = getNodeSource(markdown, node)
 
-  return restoreMarkdownPlaceholders(normalizeLatexMathInText(stripped), placeholders)
+  if (!rawSource) {
+    return null
+  }
+
+  const normalizedRawSource = normalizeParagraphRawSource(rawSource).trim()
+
+  if (normalizedRawSource.length === 0) {
+    return null
+  }
+
+  if (DISPLAY_MATH_ENVIRONMENT_PATTERN.test(normalizedRawSource)) {
+    return createDisplayMathNode(normalizedRawSource)
+  }
+
+  const displayMathMatch = normalizedRawSource.match(DISPLAY_MATH_DELIMITER_PATTERN)
+
+  if (!displayMathMatch) {
+    return null
+  }
+
+  return createDisplayMathNode(displayMathMatch[1].trim())
 }
 
-const normalizeLatexMath = (markdown: string) =>
-  markdown
-    .split(INLINE_CODE_PATTERN)
-    .map((part) => {
-      if (INLINE_CODE_PATTERN.test(part)) {
-        INLINE_CODE_PATTERN.lastIndex = 0
-        return part
+const mergeAdjacentTextNodes = (children: MarkdownNode[]) => {
+  const mergedChildren: MarkdownNode[] = []
+
+  for (const child of children) {
+    const previousChild = mergedChildren.at(-1)
+
+    if (child.type === 'text' && previousChild?.type === 'text') {
+      previousChild.value = `${previousChild.value ?? ''}${child.value ?? ''}`
+      continue
+    }
+
+    mergedChildren.push(child)
+  }
+
+  return mergedChildren
+}
+
+const isParentNode = (node: MarkdownNode): node is MarkdownNode & { children: MarkdownNode[] } =>
+  Array.isArray(node.children)
+
+export const applyMarkdownAstTransforms = (tree: MarkdownNode, markdown: string) => {
+  const visitNode = (node: MarkdownNode) => {
+    if (!isParentNode(node)) {
+      return
+    }
+
+    const nextChildren: MarkdownNode[] = []
+
+    for (const child of node.children) {
+      if (child.type === 'paragraph') {
+        const displayMathNode = buildParagraphDisplayMathNode(child, markdown)
+
+        if (displayMathNode) {
+          nextChildren.push(displayMathNode)
+          continue
+        }
       }
 
-      const { placeholders, stripped } = protectMarkdownLinksAndDefinitions(part)
-      const normalized = stripped
-        .split(PROTECTED_MARKDOWN_PATTERN)
-        .map((segment) => {
-          if (PROTECTED_MARKDOWN_PATTERN.test(segment)) {
-            PROTECTED_MARKDOWN_PATTERN.lastIndex = 0
-            return segment
-          }
+      visitNode(child)
 
-          return normalizeLatexMathInText(segment)
-        })
-        .join('')
-
-      return restoreMarkdownPlaceholders(normalized, placeholders)
-    })
-    .join('')
-
-export const prepareMarkdownForRender = (markdown: string) =>
-  markdown
-    .split(FENCED_CODE_BLOCK_PATTERN)
-    .map((segment) => {
-      if (/^(```|~~~)/.test(segment)) {
-        return segment
+      if (child.type === 'text') {
+        nextChildren.push(...transformTextNode(child, markdown))
+        continue
       }
 
-      return normalizeLatexMath(segment)
-        .split(INLINE_OR_DISPLAY_MATH_PATTERN)
-        .map((mathOrText) => {
-          if (mathOrText.startsWith('$')) {
-            return mathOrText
-          }
+      nextChildren.push(child)
+    }
 
-          return mathOrText.replace(UNDERLINE_PLACEHOLDER_PATTERN, (match) => {
-            const widthCh = Math.max(match.length, 4)
+    node.children = mergeAdjacentTextNodes(nextChildren)
+  }
 
-            return `<span class="signature-line" aria-hidden="true" style="width: ${widthCh}ch"></span>`
-          })
-        })
-        .join('')
-    })
-    .join('')
+  visitNode(tree)
+}
+
+export const remarkDocumentMarkdownTransform =
+  ({ markdown }: { markdown: string }) =>
+  (tree: MarkdownNode) => {
+    applyMarkdownAstTransforms(tree, markdown)
+  }
 
 export const isPaletteStyleKey = (
   key: keyof StyleState,

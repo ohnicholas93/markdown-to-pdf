@@ -36,7 +36,7 @@ import {
   clamp,
   countWords,
   isPaletteStyleKey,
-  prepareMarkdownForRender,
+  remarkDocumentMarkdownTransform,
   type MarkdownActionKey,
   type PageChromeState,
   type PagePresetKey,
@@ -134,16 +134,14 @@ function SelectField({
 }
 
 export function DocumentContent({ markdown }: { markdown: string }) {
-  const renderedMarkdown = prepareMarkdownForRender(markdown)
-
   return (
     <div className="document-root">
       <article className="markdown-body">
         <ReactMarkdown
-          remarkPlugins={[remarkGfm, remarkMath]}
+          remarkPlugins={[remarkGfm, remarkMath, [remarkDocumentMarkdownTransform, { markdown }]]}
           rehypePlugins={[rehypeRaw, rehypeMathjax]}
         >
-          {renderedMarkdown || '*Start typing markdown to see the preview.*'}
+          {markdown || '*Start typing markdown to see the preview.*'}
         </ReactMarkdown>
       </article>
     </div>
@@ -164,20 +162,19 @@ const PaletteColorField = memo(function PaletteColorField({
   onCommit: (value: string, generation: number) => void
 }) {
   const inputRef = useRef<HTMLInputElement | null>(null)
-  const [draftValue, setDraftValue] = useState(value)
+  const controlledValueKey = `${commitGeneration}:${value}`
+  const [draftState, setDraftState] = useState<{
+    controlledValueKey: string
+    draftValue: string | null
+  }>({
+    controlledValueKey,
+    draftValue: null,
+  })
   const lastCommitAtRef = useRef(0)
   const pendingCommitRef = useRef<number | null>(null)
-  const skipDraftCommitRef = useRef(false)
-
-  useEffect(() => {
-    if (pendingCommitRef.current !== null) {
-      window.clearTimeout(pendingCommitRef.current)
-      pendingCommitRef.current = null
-    }
-
-    skipDraftCommitRef.current = true
-    setDraftValue(value)
-  }, [value])
+  const draftValue =
+    draftState.controlledValueKey === controlledValueKey ? draftState.draftValue : null
+  const displayedValue = draftValue ?? value
 
   useEffect(() => {
     const input = inputRef.current
@@ -201,15 +198,10 @@ const PaletteColorField = memo(function PaletteColorField({
     return () => {
       input.removeEventListener('change', handleNativeChange)
     }
-  }, [onCommit])
+  }, [commitGeneration, onCommit])
 
   useEffect(() => {
-    if (skipDraftCommitRef.current) {
-      skipDraftCommitRef.current = false
-      return
-    }
-
-    if (draftValue === value) {
+    if (draftValue === null || draftValue === value) {
       return
     }
 
@@ -239,8 +231,13 @@ const PaletteColorField = memo(function PaletteColorField({
         className="h-9 w-full cursor-pointer bg-black/20 p-0 -ml-0.5"
         ref={inputRef}
         type="color"
-        value={draftValue}
-        onInput={(event) => setDraftValue((event.target as HTMLInputElement).value)}
+        value={displayedValue}
+        onInput={(event) =>
+          setDraftState({
+            controlledValueKey,
+            draftValue: (event.target as HTMLInputElement).value,
+          })
+        }
       />
     </label>
   )

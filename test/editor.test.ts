@@ -1,5 +1,8 @@
 import { describe, expect, test } from 'bun:test'
+import { unified } from 'unified'
+import remarkParse from 'remark-parse'
 import {
+  applyMarkdownAstTransforms,
   createStylesetState,
   DEFAULT_PAGE_CHROME,
   DEFAULT_STYLE,
@@ -9,9 +12,18 @@ import {
   countWords,
   isPaletteStyleKey,
   parseStylesetState,
-  prepareMarkdownForRender,
   serializeStylesetState,
 } from '../src/lib/editor'
+
+const parseAndTransformMarkdown = (markdown: string) => {
+  const tree = unified().use(remarkParse).parse(markdown) as {
+    children: Array<Record<string, unknown>>
+  }
+
+  applyMarkdownAstTransforms(tree as never, markdown)
+
+  return tree
+}
 
 describe('editor helpers', () => {
   test('counts words without inflating empty whitespace', () => {
@@ -155,19 +167,23 @@ describe('editor helpers', () => {
     expect(list.markdown).toBe('1. First\n2. Second')
   })
 
-  test('prepares markdown for rendering signature lines without mutating code fences', () => {
-    const next = prepareMarkdownForRender(
+  test('transforms signature lines in text while leaving code fences untouched', () => {
+    const tree = parseAndTransformMarkdown(
       `Tanda Tangan: ________\n\n\`\`\`txt\nkeep ________ literal\n\`\`\``,
     )
+    const paragraph = tree.children[0] as { children: Array<Record<string, unknown>> }
+    const code = tree.children[1] as { type: string; value: string }
 
-    expect(next).toContain(
+    expect(paragraph.children.map((child) => child.type)).toEqual(['text', 'html'])
+    expect(paragraph.children[1].value).toBe(
       '<span class="signature-line" aria-hidden="true" style="width: 8ch"></span>',
     )
-    expect(next).toContain('```txt\nkeep ________ literal\n```')
+    expect(code.type).toBe('code')
+    expect(code.value).toBe('keep ________ literal')
   })
 
-  test('normalizes common latex delimiters and environments for rendering', () => {
-    const next = prepareMarkdownForRender(
+  test('transforms escaped latex delimiters and standalone environments into math nodes', () => {
+    const tree = parseAndTransformMarkdown(
       String.raw`Inline \(a^2 + b^2 = c^2\)
 
 \[
@@ -179,138 +195,156 @@ f(x) &= x^2 \\
 g(x) &= x^3
 \end{align}`,
     )
+    const inlineParagraph = tree.children[0] as { children: Array<Record<string, unknown>> }
+    const displayMath = tree.children[1] as { type: string; value: string }
+    const environmentMath = tree.children[2] as { type: string; value: string }
 
-    expect(next).toContain('$a^2 + b^2 = c^2$')
-    expect(next).toContain('$$\n\\frac{1}{2}\n$$')
-    expect(next).toContain(
-      '$$\n\\begin{align}\nf(x) &= x^2 \\\\\ng(x) &= x^3\n\\end{align}\n$$',
-    )
+    expect(inlineParagraph.children.map((child) => child.type)).toEqual(['text', 'inlineMath'])
+    expect(inlineParagraph.children[1].value).toBe('a^2 + b^2 = c^2')
+    expect(displayMath).toMatchObject({ type: 'math', value: '\\frac{1}{2}' })
+    expect(environmentMath).toMatchObject({
+      type: 'math',
+      value: String.raw`\begin{align}
+f(x) &= x^2 \\
+g(x) &= x^3
+\end{align}`,
+    })
   })
 
-  test('does not rewrite escaped latex delimiters inside link destinations or html attributes', () => {
-    const next = prepareMarkdownForRender(
-      String.raw`[x](https://example.com/\(foo\))
+  test('keeps inline latex detection working after named html entities', () => {
+    const tree = parseAndTransformMarkdown(String.raw`&nbsp; \(x\) and &copy; \(y\)`)
+    const paragraph = tree.children[0] as { children: Array<Record<string, unknown>> }
 
-<span data-target="\[bar\]">safe</span>
-
-\(z\)`,
-    )
-
-    expect(next).toContain(String.raw`[x](https://example.com/\(foo\))`)
-    expect(next).toContain(String.raw`<span data-target="\[bar\]">safe</span>`)
-    expect(next).toContain('$z$')
+    expect(paragraph.children.map((child) => child.type)).toEqual([
+      'text',
+      'inlineMath',
+      'text',
+      'inlineMath',
+    ])
+    expect(paragraph.children[0].value).toBe('\u00a0 ')
+    expect(paragraph.children[1].value).toBe('x')
+    expect(paragraph.children[2].value).toBe(' and \u00a9 ')
+    expect(paragraph.children[3].value).toBe('y')
   })
 
-  test('normalizes latex inside link labels while preserving destinations', () => {
-    const next = prepareMarkdownForRender(String.raw`[see \(x\)](https://example.com/\(foo\))`)
+  test('normalizes link labels without mutating destinations, titles, or raw html', () => {
+    const tree = parseAndTransformMarkdown(
+      String.raw`[see \(x\)](<https://example.com/\(foo\)> "title \(bar\)")
 
-    expect(next).toContain(String.raw`[see $x$](https://example.com/\(foo\))`)
+<span data-target="\[bar\]">safe</span>`,
+    )
+    const linkParagraph = tree.children[0] as { children: Array<Record<string, unknown>> }
+    const link = linkParagraph.children[0] as {
+      children: Array<Record<string, unknown>>
+      title: string
+      type: string
+      url: string
+    }
+    const htmlParagraph = tree.children[1] as { children: Array<Record<string, unknown>> }
+
+    expect(link.type).toBe('link')
+    expect(link.url).toBe('https://example.com/(foo)')
+    expect(link.title).toBe('title (bar)')
+    expect(link.children.map((child) => child.type)).toEqual(['text', 'inlineMath'])
+    expect(link.children[0].value).toBe('see ')
+    expect(link.children[1].value).toBe('x')
+    expect(htmlParagraph.children.map((child) => child.type)).toEqual(['html', 'text', 'html'])
+    expect(htmlParagraph.children[0].value).toBe('<span data-target="\\[bar\\]">')
+    expect(htmlParagraph.children[1].value).toBe('safe')
+    expect(htmlParagraph.children[2].value).toBe('</span>')
   })
 
-  test('preserves inline link titles and destinations while normalizing the visible label', () => {
-    const next = prepareMarkdownForRender(
-      String.raw`[see \(x\)](https://example.com/\(foo\) "title \(bar\)")`,
+  test('keeps explicit and collapsed reference links aligned with their definitions', () => {
+    const explicitTree = parseAndTransformMarkdown(
+      String.raw`[see \(x\)][ref \(x\)]
+
+[ref \(x\)]: https://example.com/\(foo\) "title \(bar\)"`,
     )
+    const explicitReferenceParagraph = explicitTree.children[0] as {
+      children: Array<Record<string, unknown>>
+    }
+    const explicitReference = explicitReferenceParagraph.children[0] as {
+      children: Array<Record<string, unknown>>
+      identifier: string
+      type: string
+    }
+    const explicitDefinition = explicitTree.children[1] as {
+      identifier: string
+      title: string
+      type: string
+      url: string
+    }
 
-    expect(next).toBe(String.raw`[see $x$](https://example.com/\(foo\) "title \(bar\)")`)
-  })
+    expect(explicitReference.type).toBe('linkReference')
+    expect(explicitReference.identifier).toBe(explicitDefinition.identifier)
+    expect(explicitReference.children.map((child) => child.type)).toEqual(['text', 'inlineMath'])
+    expect(explicitDefinition).toMatchObject({
+      type: 'definition',
+      url: 'https://example.com/(foo)',
+      title: 'title (bar)',
+    })
 
-  test('preserves angle-bracket inline destinations with titles while normalizing the visible label', () => {
-    const next = prepareMarkdownForRender(
-      String.raw`[see \(x\)](<https://example.com/\(foo\)> "title \(bar\)")`,
-    )
-
-    expect(next).toBe(String.raw`[see $x$](<https://example.com/\(foo\)> "title \(bar\)")`)
-  })
-
-  test('preserves reference-style link definitions while normalizing the visible label', () => {
-    const next = prepareMarkdownForRender(
-      String.raw`[see \(x\)][ref]
-
-[ref]: https://example.com/\(foo\) "title \(bar\)"`,
-    )
-
-    expect(next).toBe(
-      String.raw`[see $x$][ref]
-
-[ref]: https://example.com/\(foo\) "title \(bar\)"`,
-    )
-  })
-
-  test('keeps shortcut reference links aligned with normalized definition labels', () => {
-    const next = prepareMarkdownForRender(
-      String.raw`[see \(x\)]
+    const collapsedTree = parseAndTransformMarkdown(
+      String.raw`[see \(x\)][]
 
 [see \(x\)]: https://example.com/\(foo\)`,
     )
+    const collapsedReferenceParagraph = collapsedTree.children[0] as {
+      children: Array<Record<string, unknown>>
+    }
+    const collapsedReference = collapsedReferenceParagraph.children[0] as {
+      children: Array<Record<string, unknown>>
+      identifier: string
+      type: string
+    }
+    const collapsedDefinition = collapsedTree.children[1] as {
+      identifier: string
+      type: string
+      url: string
+    }
 
-    expect(next).toBe(
-      String.raw`[see $x$]
-
-[see $x$]: https://example.com/\(foo\)`,
-    )
+    expect(collapsedReference.type).toBe('linkReference')
+    expect(collapsedReference.identifier).toBe(collapsedDefinition.identifier)
+    expect(collapsedReference.children.map((child) => child.type)).toEqual(['text', 'inlineMath'])
+    expect(collapsedDefinition).toMatchObject({
+      type: 'definition',
+      url: 'https://example.com/(foo)',
+    })
   })
 
-  test('keeps explicit reference identifiers aligned with normalized definition labels', () => {
-    const next = prepareMarkdownForRender(
-      String.raw`[see \(x\)][ref \(x\)]
-
-[ref \(x\)]: https://example.com/\(foo\)`,
-    )
-
-    expect(next).toBe(
-      String.raw`[see $x$][ref $x$]
-
-[ref $x$]: https://example.com/\(foo\)`,
-    )
-  })
-
-  test('does not rewrite literal placeholder-looking text while restoring links', () => {
-    const next = prepareMarkdownForRender(
-      String.raw`@@LATEX_LINK_0@@ [see \(x\)](https://example.com)`,
-    )
-
-    expect(next).toBe(String.raw`@@LATEX_LINK_0@@ [see $x$](https://example.com)`)
-  })
-
-  test('preserves indentation when wrapping block math environments', () => {
-    const next = prepareMarkdownForRender(
+  test('preserves list and blockquote containment for display math paragraphs', () => {
+    const tree = parseAndTransformMarkdown(
       String.raw`- item
 
   \begin{align}
   f(x) &= x^2 \\
   g(x) &= x^3
-  \end{align}`,
-    )
-
-    expect(next).toContain(
-      String.raw`  $$
-  \begin{align}
-  f(x) &= x^2 \\
-  g(x) &= x^3
   \end{align}
-  $$`,
-    )
-  })
 
-  test('preserves blockquote structure when wrapping block math environments', () => {
-    const next = prepareMarkdownForRender(
-      String.raw`> quote
+> quote
 >
->   \begin{align}
->   a &= b \\
->   c &= d
->   \end{align}`,
+> \[
+> \frac{1}{2}
+> \]`,
     )
+    const list = tree.children[0] as {
+      children: Array<{ children: Array<Record<string, unknown>> }>
+      type: string
+    }
+    const listMath = list.children[0].children[1] as { type: string; value: string }
+    const blockquote = tree.children[1] as { children: Array<Record<string, unknown>>; type: string }
+    const blockquoteMath = blockquote.children[1] as { type: string; value: string }
 
-    expect(next).toContain(
-      String.raw`>   $$
->   \begin{align}
->   a &= b \\
->   c &= d
->   \end{align}
->   $$`,
-    )
+    expect(list.type).toBe('list')
+    expect(listMath).toMatchObject({
+      type: 'math',
+      value: String.raw`\begin{align}
+f(x) &= x^2 \\
+g(x) &= x^3
+\end{align}`,
+    })
+    expect(blockquote.type).toBe('blockquote')
+    expect(blockquoteMath).toMatchObject({ type: 'math', value: '\\frac{1}{2}' })
   })
 
   test('serializes and parses stylesets as JSON', () => {

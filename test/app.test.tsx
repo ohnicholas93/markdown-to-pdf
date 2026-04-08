@@ -155,6 +155,24 @@ $$`}
     expect((view.getByLabelText('Paper') as HTMLInputElement).value).toBe('#e8ecf3')
   })
 
+  test('resetting the palette clears stale color drafts before delayed commits fire', () => {
+    const view = render(<App />)
+
+    fireEvent.click(view.getByText('Document Settings'))
+
+    const paperInput = view.getByLabelText('Paper') as HTMLInputElement
+    fireEvent.input(paperInput, { target: { value: '#eeeeee' } })
+
+    fireEvent.click(view.getByText('Slate Room'))
+    fireEvent.click(view.getByText('Reset settings'))
+
+    expect((view.getByLabelText('Paper') as HTMLInputElement).value).toBe('#ffffff')
+
+    vi.advanceTimersByTime(1000)
+
+    expect((view.getByLabelText('Paper') as HTMLInputElement).value).toBe('#ffffff')
+  })
+
   test('exports the current styleset as JSON', async () => {
     const view = render(<App />)
     const file = new File(
