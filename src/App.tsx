@@ -1312,13 +1312,14 @@ function App() {
                 <h2 className="m-0 font-[var(--font-display)] text-[clamp(1.3rem,1rem+0.7vw,1.8rem)] font-semibold tracking-[-0.03em]">
                   Markdown
                 </h2>
-                <p className="mt-1 text-sm text-[var(--chrome-muted)]">
-                  Edit the source and keep the preview in sync. LaTeX math supports
+                {/* <p className="mt-1 text-sm text-[var(--chrome-muted)]"> */}
+                  {/* Edit the source and keep the preview in sync.  */}
+                  {/* LaTeX math supports
                   <code className="ml-1">$...$</code>,
                   <code className="ml-1">$$...$$</code>,
                   <code className="ml-1">\(...\)</code>, and
-                  <code className="ml-1">\[...\]</code>.
-                </p>
+                  <code className="ml-1">\[...\]</code>. */}
+                {/* </p> */}
               </div>
               <div className="flex flex-wrap gap-2 sm:justify-end">
                 <span className="rounded-full bg-white/[0.05] px-3 py-1.5 text-sm text-[var(--chrome-muted)]">
@@ -1334,7 +1335,7 @@ function App() {
               {MARKDOWN_ACTIONS.map((action) => (
                 <button
                   key={action.key}
-                  className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-xs font-semibold tracking-[0.08em] text-[var(--chrome-text)] transition hover:border-white/20 hover:bg-white/[0.08]"
+                  className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-0.5 text-xs font-semibold tracking-[0.08em] text-[var(--chrome-text)] transition hover:border-white/20 hover:bg-white/[0.08]"
                   type="button"
                   onClick={() => applyToolbarAction(action.key as MarkdownActionKey)}
                 >
