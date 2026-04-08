@@ -312,7 +312,11 @@ type MarkdownPosition = {
 
 type MarkdownNode = {
   children?: MarkdownNode[]
+  data?: Record<string, unknown>
+  meta?: string | null
   position?: MarkdownPosition | null
+  properties?: Record<string, unknown>
+  tagName?: string
   type: string
   value?: string
 }
@@ -341,11 +345,42 @@ const createSignatureLineNode = (widthCh: number): MarkdownNode => ({
 const createInlineMathNode = (value: string): MarkdownNode => ({
   type: 'inlineMath',
   value,
+  data: {
+    hName: 'code',
+    hProperties: {
+      className: ['language-math', 'math-inline'],
+    },
+    hChildren: [
+      {
+        type: 'text',
+        value,
+      },
+    ],
+  },
 })
 
 const createDisplayMathNode = (value: string): MarkdownNode => ({
   type: 'math',
   value,
+  meta: null,
+  data: {
+    hName: 'pre',
+    hChildren: [
+      {
+        type: 'element',
+        tagName: 'code',
+        properties: {
+          className: ['language-math', 'math-display'],
+        },
+        children: [
+          {
+            type: 'text',
+            value,
+          },
+        ],
+      },
+    ],
+  },
 })
 
 const splitPlainTextIntoNodes = (value: string) => {

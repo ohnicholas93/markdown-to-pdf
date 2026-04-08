@@ -125,14 +125,22 @@ describe('App', () => {
         <DocumentContent
           markdown={String.raw`Inline math \(E = mc^2\)
 
-$$
+\[
 \int_0^1 x^2 \, dx = \frac{1}{3}
-$$`}
+\]
+
+\begin{align}
+f(x) &= x^2 + 2x + 1 \\
+g(x) &= \frac{x^3}{3}
+\end{align}`}
         />,
       )
 
       expect(markup).toContain('mjx-container')
       expect(markup).toContain('display="true"')
+      expect(markup).toContain('E')
+      expect(markup).not.toContain(String.raw`\begin{align}`)
+      expect(markup).not.toContain(String.raw`\frac{1}{3}`)
     } finally {
       console.warn = originalConsoleWarn
     }

@@ -46,11 +46,11 @@ import {
   type ThemeSelection,
 } from './lib/editor'
 
-const SAMPLE_MARKDOWN = `# Editorial Markdown
+const SAMPLE_MARKDOWN = String.raw`# Editorial Markdown
 
 Turn raw markdown into a polished PDF without leaving the browser.
 
-## Why this works
+## Markdown features
 
 - Live preview updates as you type
 - Pagination is rendered as real pages
@@ -64,25 +64,51 @@ Turn raw markdown into a polished PDF without leaving the browser.
 - [x] Tweak typography and page chrome
 - [x] Print or save the rendered PDF
 
+### LaTeX support
+
+This preview accepts inline math with dollar delimiters like $E = mc^2$
+
+It also accepts escaped inline LaTeX delimiters like \(a^2 + b^2 = c^2\)
+
+Escaped display math blocks render too:
+
+\[
+\int_0^1 x^2 \, dx = \frac{1}{3}
+\]
+
+Supported block environments such as <code>align</code> are accepted directly:
+
+\begin{align}
+f(x) &= x^2 + 2x + 1 \\
+g(x) &= \frac{x^3}{3}
+\end{align}
+
+Matrices and other standalone environments work too:
+
+\begin{bmatrix}
+1 & 0 \\
+0 & 1
+\end{bmatrix}
+
 ### Table sample
 
 | Section | Purpose | Status |
 | --- | --- | --- |
 | Editor | Source markdown | Ready |
-| Preview | Paginated render | Ready |
+| Preview | Paginated render with math | Ready |
 | Export | Browser print PDF | Ready |
 
-\`\`\`ts
+${'```'}ts
 export function renderMarkdown(source: string) {
   return source.trim()
 }
-\`\`\`
+${'```'}
 
 ---
 
 #### Notes
 
-You can use headings, lists, tables, fenced code blocks, blockquotes, and inline emphasis.
+You can use headings, lists, tables, fenced code blocks, blockquotes, inline emphasis, and LaTeX math in the forms above.
 `
 
 const controlLabelClass =
