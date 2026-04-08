@@ -101,9 +101,17 @@ button:not([disabled]) {
 .markdown-body h5,
 .markdown-body h6 {
   font-family: var(--page-heading-family);
+  text-align: var(--page-heading-align);
   line-height: 1.1;
   letter-spacing: -0.03em;
   margin: calc(var(--page-block-spacing) * 1.45) 0 calc(var(--page-block-spacing) * 0.6);
+}
+
+.markdown-body p,
+.markdown-body ul,
+.markdown-body ol,
+.markdown-body blockquote {
+  text-align: var(--page-body-align);
 }
 
 .markdown-body h1 {
@@ -154,15 +162,38 @@ button:not([disabled]) {
 }
 
 .markdown-body blockquote {
+  position: relative;
   margin-left: 0;
-  padding: 0.4rem 0 0.4rem 1rem;
-  border-left: 3px solid var(--page-accent);
+  padding:
+    0.4rem
+    var(--page-blockquote-padding-right)
+    0.4rem
+    var(--page-blockquote-padding-left);
   color: color-mix(in srgb, var(--page-text) 82%, #ffffff 18%);
+}
+
+.markdown-body blockquote::before {
+  content: '';
+  position: absolute;
+  top: 0rem;
+  bottom: 0rem;
+  left: var(--page-blockquote-rule-left);
+  right: var(--page-blockquote-rule-right);
+  width: 3px;
+  background: var(--page-accent);
+  opacity: var(--page-blockquote-rule-opacity);
+  border-radius: 999px;
+}
+
+.markdown-body blockquote p {
+  margin-bottom: 0;
 }
 
 .markdown-body ul,
 .markdown-body ol {
-  padding-left: 1.3rem;
+  padding-left: var(--page-list-padding-left);
+  padding-right: var(--page-list-padding-right);
+  list-style-position: var(--page-list-style-position);
 }
 
 .markdown-body ul {
@@ -191,6 +222,7 @@ button:not([disabled]) {
 
 .markdown-body li {
   display: list-item;
+  text-align: var(--page-body-align);
 }
 
 .markdown-body li + li {
@@ -257,13 +289,31 @@ button:not([disabled]) {
   overflow-y: hidden;
 }
 
+.markdown-body mjx-container[jax='SVG']:not([display='true']) {
+  display: inline-block;
+  vertical-align: -0.43em;
+}
+
 .markdown-body mjx-container[jax='SVG'][display='true'] {
   display: block;
-  margin: 0 0 var(--page-block-spacing);
+  text-align: var(--page-body-align);
+  margin:
+    0
+    var(--page-display-math-margin-right)
+    var(--page-block-spacing)
+    var(--page-display-math-margin-left);
+  width: fit-content;
+  max-width: 100%;
   break-inside: avoid;
 }
 
-.markdown-body mjx-container[jax='SVG'] > svg {
+.markdown-body mjx-container[jax='SVG']:not([display='true']) > svg {
+  display: inline-block;
+  max-width: 100%;
+  height: auto;
+}
+
+.markdown-body mjx-container[jax='SVG'][display='true'] > svg {
   display: block;
   max-width: 100%;
   height: auto;

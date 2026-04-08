@@ -144,6 +144,19 @@ export const PAGE_NUMBER_POSITIONS = {
   'bottom-right': 'Bottom right',
 } as const
 
+export const HEADING_TEXT_ALIGNMENTS = {
+  left: 'Left',
+  center: 'Center',
+  right: 'Right',
+} as const
+
+export const BODY_TEXT_ALIGNMENTS = {
+  left: 'Left',
+  center: 'Center',
+  right: 'Right',
+  justify: 'Justify',
+} as const
+
 export const MARKDOWN_ACTIONS = [
   { key: 'heading', label: 'H2' },
   { key: 'bold', label: 'Bold' },
@@ -166,6 +179,8 @@ export type HeadingFontPresetKey = FontPresetKey
 export type HeaderPosition = keyof typeof HEADER_POSITIONS
 export type FooterPosition = keyof typeof FOOTER_POSITIONS
 export type MarginBoxPosition = keyof typeof PAGE_NUMBER_POSITIONS
+export type HeadingTextAlignment = keyof typeof HEADING_TEXT_ALIGNMENTS
+export type BodyTextAlignment = keyof typeof BODY_TEXT_ALIGNMENTS
 export type MarkdownActionKey = (typeof MARKDOWN_ACTIONS)[number]['key']
 export const MIN_CHROME_FONT_SIZE_PT = 7
 export const MAX_CHROME_FONT_SIZE_PT = 16
@@ -174,6 +189,8 @@ export const DEFAULT_CHROME_FONT_SIZE_PT = 9
 export type StyleState = {
   fontFamily: BodyFontPresetKey
   headingFamily: HeadingFontPresetKey
+  headingAlignment: HeadingTextAlignment
+  bodyAlignment: BodyTextAlignment
   bodyFontSize: number
   headingBaseSize: number
   lineHeight: number
@@ -209,6 +226,8 @@ export const PALETTE_STYLE_KEYS = ['background', 'text', 'accent'] as const
 export const DEFAULT_STYLE: StyleState = {
   fontFamily: 'literata',
   headingFamily: 'libre',
+  headingAlignment: 'left',
+  bodyAlignment: 'left',
   bodyFontSize: 16,
   headingBaseSize: 22,
   lineHeight: 1.65,
@@ -244,6 +263,19 @@ type PagedDocumentCssInput = {
   horizontalMarginMm: number
   verticalMarginMm: number
   chrome: PageChromeState
+}
+
+type BodyAlignmentLayout = {
+  blockquotePaddingLeft: string
+  blockquotePaddingRight: string
+  blockquoteRuleLeft: string
+  blockquoteRuleRight: string
+  blockquoteRuleOpacity: string
+  displayMathMarginLeft: string
+  displayMathMarginRight: string
+  listPaddingLeft: string
+  listPaddingRight: string
+  listStylePosition: 'inside' | 'outside'
 }
 
 type MarkdownSelectionInput = {
@@ -743,6 +775,12 @@ const isFooterPosition = (value: unknown): value is FooterPosition =>
 const isMarginBoxPosition = (value: unknown): value is MarginBoxPosition =>
   typeof value === 'string' && value in PAGE_NUMBER_POSITIONS
 
+const isHeadingTextAlignment = (value: unknown): value is HeadingTextAlignment =>
+  typeof value === 'string' && value in HEADING_TEXT_ALIGNMENTS
+
+const isBodyTextAlignment = (value: unknown): value is BodyTextAlignment =>
+  typeof value === 'string' && value in BODY_TEXT_ALIGNMENTS
+
 export const createStylesetState = ({
   themePreset,
   pagePreset,
@@ -799,6 +837,12 @@ export const parseStylesetState = (input: string): StylesetState => {
       headingFamily: isFontPresetKey(style.headingFamily)
         ? style.headingFamily
         : DEFAULT_STYLE.headingFamily,
+      headingAlignment: isHeadingTextAlignment(style.headingAlignment)
+        ? style.headingAlignment
+        : DEFAULT_STYLE.headingAlignment,
+      bodyAlignment: isBodyTextAlignment(style.bodyAlignment)
+        ? style.bodyAlignment
+        : DEFAULT_STYLE.bodyAlignment,
       bodyFontSize: clamp(
         isFiniteNumber(style.bodyFontSize) ? style.bodyFontSize : DEFAULT_STYLE.bodyFontSize,
         13,
@@ -958,6 +1002,52 @@ const buildMarginBoxRules = (chrome: PageChromeState) => {
     .join('\n')
 }
 
+const getBodyAlignmentLayout = (alignment: BodyTextAlignment): BodyAlignmentLayout => {
+  switch (alignment) {
+    case 'center':
+      return {
+        blockquotePaddingLeft: '0',
+        blockquotePaddingRight: '0',
+        blockquoteRuleLeft: 'auto',
+        blockquoteRuleRight: 'auto',
+        blockquoteRuleOpacity: '0',
+        displayMathMarginLeft: 'auto',
+        displayMathMarginRight: 'auto',
+        listPaddingLeft: '0',
+        listPaddingRight: '0',
+        listStylePosition: 'inside',
+      }
+    case 'right':
+      return {
+        blockquotePaddingLeft: '0',
+        blockquotePaddingRight: '1rem',
+        blockquoteRuleLeft: 'auto',
+        blockquoteRuleRight: '0',
+        blockquoteRuleOpacity: '1',
+        displayMathMarginLeft: 'auto',
+        displayMathMarginRight: '0',
+        listPaddingLeft: '0',
+        listPaddingRight: '1.3rem',
+        listStylePosition: 'inside',
+      }
+    case 'justify':
+    case 'left':
+    default:
+      return {
+        blockquotePaddingLeft: '1rem',
+        blockquotePaddingRight: '0',
+        blockquoteRuleLeft: '0',
+        blockquoteRuleRight: 'auto',
+        blockquoteRuleOpacity: '1',
+        displayMathMarginLeft: '0',
+        displayMathMarginRight: 'auto',
+        listPaddingLeft: '1.3rem',
+        listPaddingRight: '0',
+        listStylePosition: 'outside',
+      }
+  }
+}
+
 export const buildPagedDocumentCss = ({
   style,
   pagePreset,
@@ -971,6 +1061,7 @@ export const buildPagedDocumentCss = ({
   const bodyFont = BODY_FONT_PRESETS[style.fontFamily]
   const headingFont = HEADING_FONT_PRESETS[style.headingFamily]
   const chromeColor = withAlpha(style.text, 0.72)
+  const bodyAlignmentLayout = getBodyAlignmentLayout(style.bodyAlignment)
 
   return `
 @page {
@@ -1036,8 +1127,11 @@ export const buildPagedDocumentCss = ({
 .document-root .markdown-body h1,
 .document-root .markdown-body h2,
 .document-root .markdown-body h3,
-.document-root .markdown-body h4 {
+.document-root .markdown-body h4,
+.document-root .markdown-body h5,
+.document-root .markdown-body h6 {
   font-family: ${headingFont.family};
+  text-align: ${style.headingAlignment};
   line-height: 1.1;
   letter-spacing: -0.03em;
   margin: ${style.paragraphSpacing * 1.45}rem 0 ${style.paragraphSpacing * 0.6}rem;
@@ -1072,6 +1166,13 @@ export const buildPagedDocumentCss = ({
 .document-root .markdown-body p,
 .document-root .markdown-body ul,
 .document-root .markdown-body ol,
+.document-root .markdown-body blockquote {
+  text-align: ${style.bodyAlignment};
+}
+
+.document-root .markdown-body p,
+.document-root .markdown-body ul,
+.document-root .markdown-body ol,
 .document-root .markdown-body blockquote,
 .document-root .markdown-body pre,
 .document-root .markdown-body table,
@@ -1100,16 +1201,39 @@ export const buildPagedDocumentCss = ({
 }
 
 .document-root .markdown-body blockquote {
+  position: relative;
   margin-left: 0;
-  padding: 0.4rem 0 0.4rem 1rem;
-  border-left: 3px solid ${style.accent};
+  padding: 0.4rem ${bodyAlignmentLayout.blockquotePaddingRight} 0.4rem ${bodyAlignmentLayout.blockquotePaddingLeft};
   color: color-mix(in srgb, ${style.text} 82%, #ffffff 18%);
   break-inside: avoid;
 }
 
+.document-root .markdown-body blockquote::before {
+  content: '';
+  position: absolute;
+  top: 0rem;
+  bottom: 0rem;
+  left: ${bodyAlignmentLayout.blockquoteRuleLeft};
+  right: ${bodyAlignmentLayout.blockquoteRuleRight};
+  width: 3px;
+  background: ${style.accent};
+  opacity: ${bodyAlignmentLayout.blockquoteRuleOpacity};
+  border-radius: 999px;
+}
+
+.document-root .markdown-body blockquote p {
+  margin-bottom: 0;
+}
+
 .document-root .markdown-body ul,
 .document-root .markdown-body ol {
-  padding-left: 1.3rem;
+  padding-left: ${bodyAlignmentLayout.listPaddingLeft};
+  padding-right: ${bodyAlignmentLayout.listPaddingRight};
+  list-style-position: ${bodyAlignmentLayout.listStylePosition};
+}
+
+.document-root .markdown-body li {
+  text-align: ${style.bodyAlignment};
 }
 
 .document-root .markdown-body li + li {
@@ -1169,6 +1293,42 @@ export const buildPagedDocumentCss = ({
 
 .document-root .markdown-body th {
   background: color-mix(in srgb, ${style.accent} 12%, white 72%);
+}
+
+.document-root .markdown-body mjx-container {
+  color: inherit;
+}
+
+.document-root .markdown-body mjx-container[jax='SVG'] {
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.document-root .markdown-body mjx-container[jax='SVG']:not([display='true']) {
+  display: inline-block;
+  vertical-align: -0.43em;
+}
+
+.document-root .markdown-body mjx-container[jax='SVG'][display='true'] {
+  display: block;
+  text-align: ${style.bodyAlignment};
+  margin: 0 ${bodyAlignmentLayout.displayMathMarginRight} ${style.paragraphSpacing}rem ${bodyAlignmentLayout.displayMathMarginLeft};
+  width: fit-content;
+  max-width: 100%;
+  break-inside: avoid;
+}
+
+.document-root .markdown-body mjx-container[jax='SVG']:not([display='true']) > svg {
+  display: inline-block;
+  max-width: 100%;
+  height: auto;
+}
+
+.document-root .markdown-body mjx-container[jax='SVG'][display='true'] > svg {
+  display: block;
+  max-width: 100%;
+  height: auto;
 }
 
 @media print {

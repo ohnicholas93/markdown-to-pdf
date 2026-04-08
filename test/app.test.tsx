@@ -197,6 +197,8 @@ g(x) &= \frac{x^3}{3}
             accent: '#f2a65a',
             fontFamily: 'literata',
             headingFamily: 'libre',
+            headingAlignment: 'right',
+            bodyAlignment: 'justify',
             bodyFontSize: 16,
             headingBaseSize: 22,
             lineHeight: 1.65,
@@ -243,6 +245,8 @@ g(x) &= \frac{x^3}{3}
     expect(exported.horizontalMarginMm).toBe(14)
     expect(exported.verticalMarginMm).toBe(20)
     expect(exported.style.background).toBe('#191613')
+    expect(exported.style.headingAlignment).toBe('right')
+    expect(exported.style.bodyAlignment).toBe('justify')
     expect(exported.pageChrome.headerFontSizePt).toBe(12)
     expect(exported.pageChrome.footerFontSizePt).toBe(8)
     expect(exported.pageChrome.pageNumbersEnabled).toBe(true)
@@ -266,6 +270,8 @@ g(x) &= \frac{x^3}{3}
           style: {
             fontFamily: 'space',
             headingFamily: 'playfair',
+            headingAlignment: 'center',
+            bodyAlignment: 'justify',
             bodyFontSize: 19,
             headingBaseSize: 31,
             lineHeight: 1.8,
@@ -305,6 +311,8 @@ g(x) &= \frac{x^3}{3}
     expect((view.getByLabelText('Vertical margin') as HTMLInputElement).value).toBe('24')
     expect((view.getByLabelText('Body font') as HTMLSelectElement).value).toBe('space')
     expect((view.getByLabelText('Heading font') as HTMLSelectElement).value).toBe('playfair')
+    expect((view.getByLabelText('Heading alignment') as HTMLSelectElement).value).toBe('center')
+    expect((view.getByLabelText('Body alignment') as HTMLSelectElement).value).toBe('justify')
     expect((view.getByLabelText('Paper') as HTMLInputElement).value).toBe('#f4efe8')
     expect((view.getByLabelText('Header text') as HTMLInputElement).value).toBe('Imported Header')
     expect((view.getByLabelText('Header size') as HTMLInputElement).value).toBe('13')
@@ -327,6 +335,8 @@ g(x) &= \frac{x^3}{3}
           style: {
             fontFamily: 'literata',
             headingFamily: 'libre',
+            headingAlignment: 'left',
+            bodyAlignment: 'left',
             bodyFontSize: 16,
             headingBaseSize: 22,
             lineHeight: 1.65,

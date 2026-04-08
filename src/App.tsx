@@ -10,6 +10,7 @@ import remarkMath from 'remark-math'
 import './App.css'
 import {
   BODY_FONT_PRESETS,
+  BODY_TEXT_ALIGNMENTS,
   createStylesetState,
   MAX_CHROME_FONT_SIZE_PT,
   MIN_HORIZONTAL_MARGIN_MM,
@@ -23,6 +24,7 @@ import {
   DEFAULT_VERTICAL_MARGIN_MM,
   FOOTER_POSITIONS,
   HEADER_POSITIONS,
+  HEADING_TEXT_ALIGNMENTS,
   HEADING_FONT_PRESETS,
   MARKDOWN_ACTIONS,
   PAGE_NUMBER_POSITIONS,
@@ -688,6 +690,45 @@ function App() {
     : pageCount > 0
       ? `${pageCount} ${pageCount === 1 ? 'page' : 'pages'}`
       : 'Rendering'
+  const bodyAlignmentLayout =
+    styleState.bodyAlignment === 'center'
+      ? {
+          blockquotePaddingLeft: '0',
+          blockquotePaddingRight: '0',
+          blockquoteRuleLeft: 'auto',
+          blockquoteRuleRight: 'auto',
+          blockquoteRuleOpacity: '0',
+          displayMathMarginLeft: 'auto',
+          displayMathMarginRight: 'auto',
+          listPaddingLeft: '0',
+          listPaddingRight: '0',
+          listStylePosition: 'inside',
+        }
+      : styleState.bodyAlignment === 'right'
+        ? {
+            blockquotePaddingLeft: '0',
+            blockquotePaddingRight: '1rem',
+            blockquoteRuleLeft: 'auto',
+            blockquoteRuleRight: '0',
+            blockquoteRuleOpacity: '1',
+            displayMathMarginLeft: 'auto',
+            displayMathMarginRight: '0',
+            listPaddingLeft: '0',
+            listPaddingRight: '1.3rem',
+            listStylePosition: 'inside',
+          }
+        : {
+            blockquotePaddingLeft: '1rem',
+            blockquotePaddingRight: '0',
+            blockquoteRuleLeft: '0',
+            blockquoteRuleRight: 'auto',
+            blockquoteRuleOpacity: '1',
+            displayMathMarginLeft: '0',
+            displayMathMarginRight: 'auto',
+            listPaddingLeft: '1.3rem',
+            listPaddingRight: '0',
+            listStylePosition: 'outside',
+          }
   const previewDocumentStyle = {
     '--page-background': styleState.background,
     '--page-text': styleState.text,
@@ -699,6 +740,18 @@ function App() {
     '--page-line-height': String(styleState.lineHeight),
     '--page-letter-spacing': `${styleState.letterSpacing}em`,
     '--page-block-spacing': `${styleState.paragraphSpacing}rem`,
+    '--page-heading-align': styleState.headingAlignment,
+    '--page-body-align': styleState.bodyAlignment,
+    '--page-blockquote-padding-left': bodyAlignmentLayout.blockquotePaddingLeft,
+    '--page-blockquote-padding-right': bodyAlignmentLayout.blockquotePaddingRight,
+    '--page-blockquote-rule-left': bodyAlignmentLayout.blockquoteRuleLeft,
+    '--page-blockquote-rule-right': bodyAlignmentLayout.blockquoteRuleRight,
+    '--page-blockquote-rule-opacity': bodyAlignmentLayout.blockquoteRuleOpacity,
+    '--page-display-math-margin-left': bodyAlignmentLayout.displayMathMarginLeft,
+    '--page-display-math-margin-right': bodyAlignmentLayout.displayMathMarginRight,
+    '--page-list-padding-left': bodyAlignmentLayout.listPaddingLeft,
+    '--page-list-padding-right': bodyAlignmentLayout.listPaddingRight,
+    '--page-list-style-position': bodyAlignmentLayout.listStylePosition,
   } as CSSProperties
 
   return (
@@ -856,23 +909,43 @@ function App() {
                   </label>
                   <div className="grid gap-3 sm:grid-cols-2">
                     <label className="grid gap-1.5">
-                      <span className={controlLabelClass}>Body size</span>
-                      <input
-                        aria-label="Body font size"
-                        className="w-full accent-[var(--chrome-accent)]"
-                        type="range"
-                        min="13"
-                        max="24"
-                        step="1"
-                        value={styleState.bodyFontSize}
+                      <span className={controlLabelClass}>Heading alignment</span>
+                      <SelectField
+                        ariaLabel="Heading alignment"
+                        value={styleState.headingAlignment}
                         onChange={(event) =>
-                          updateStyle('bodyFontSize')(Number(event.target.value))
+                          updateStyle('headingAlignment')(
+                            event.target.value as StyleState['headingAlignment'],
+                          )
                         }
-                      />
-                      <span className="text-sm text-[var(--chrome-muted)]">
-                        {styleState.bodyFontSize} pt
-                      </span>
+                      >
+                        {Object.entries(HEADING_TEXT_ALIGNMENTS).map(([key, label]) => (
+                          <option key={key} value={key}>
+                            {label}
+                          </option>
+                        ))}
+                      </SelectField>
                     </label>
+                    <label className="grid gap-1.5">
+                      <span className={controlLabelClass}>Body alignment</span>
+                      <SelectField
+                        ariaLabel="Body alignment"
+                        value={styleState.bodyAlignment}
+                        onChange={(event) =>
+                          updateStyle('bodyAlignment')(
+                            event.target.value as StyleState['bodyAlignment'],
+                          )
+                        }
+                      >
+                        {Object.entries(BODY_TEXT_ALIGNMENTS).map(([key, label]) => (
+                          <option key={key} value={key}>
+                            {label}
+                          </option>
+                        ))}
+                      </SelectField>
+                    </label>
+                  </div>
+                  <div className="grid gap-3 sm:grid-cols-2">
                     <label className="grid gap-1.5">
                       <span className={controlLabelClass}>Heading size</span>
                       <input
@@ -889,6 +962,24 @@ function App() {
                       />
                       <span className="text-sm text-[var(--chrome-muted)]">
                         {styleState.headingBaseSize} pt
+                      </span>
+                    </label>
+                    <label className="grid gap-1.5">
+                      <span className={controlLabelClass}>Body size</span>
+                      <input
+                        aria-label="Body font size"
+                        className="w-full accent-[var(--chrome-accent)]"
+                        type="range"
+                        min="13"
+                        max="24"
+                        step="1"
+                        value={styleState.bodyFontSize}
+                        onChange={(event) =>
+                          updateStyle('bodyFontSize')(Number(event.target.value))
+                        }
+                      />
+                      <span className="text-sm text-[var(--chrome-muted)]">
+                        {styleState.bodyFontSize} pt
                       </span>
                     </label>
                   </div>

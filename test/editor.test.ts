@@ -38,6 +38,8 @@ describe('editor helpers', () => {
         ...DEFAULT_STYLE,
         fontFamily: 'source',
         headingFamily: 'playfair',
+        headingAlignment: 'center',
+        bodyAlignment: 'justify',
         paragraphSpacing: 1.35,
         letterSpacing: 0.015,
       },
@@ -69,8 +71,32 @@ describe('editor helpers', () => {
     expect(css).toContain('counter(page)')
     expect(css).toContain("font-family: 'Source Serif 4'")
     expect(css).toContain("font-family: 'Playfair Display'")
+    expect(css).toContain('text-align: center;')
+    expect(css).toContain('text-align: justify;')
     expect(css).toContain('letter-spacing: 0.015em;')
     expect(css).toContain('print-color-adjust: exact;')
+  })
+
+  test('adjusts lists, blockquotes, and display math for right-aligned body copy', () => {
+    const css = buildPagedDocumentCss({
+      style: {
+        ...DEFAULT_STYLE,
+        bodyAlignment: 'right',
+      },
+      pagePreset: 'a4',
+      horizontalMarginMm: 16,
+      verticalMarginMm: 16,
+      chrome: DEFAULT_PAGE_CHROME,
+    })
+
+    expect(css).toContain('blockquote::before')
+    expect(css).toContain('left: auto;')
+    expect(css).toContain('right: 0;')
+    expect(css).toContain('list-style-position: inside;')
+    expect(css).toContain('padding-right: 1.3rem;')
+    expect(css).toContain("mjx-container[jax='SVG'][display='true']")
+    expect(css).toContain('margin: 0 0 1.1rem auto;')
+    expect(css).toContain("mjx-container[jax='SVG']:not([display='true']) > svg")
   })
 
   test('uses the footer size for page numbers', () => {
@@ -128,9 +154,32 @@ describe('editor helpers', () => {
   test('uses a black and white classic print style by default', () => {
     expect(DEFAULT_STYLE.fontFamily).toBe('literata')
     expect(DEFAULT_STYLE.headingFamily).toBe('libre')
+    expect(DEFAULT_STYLE.headingAlignment).toBe('left')
+    expect(DEFAULT_STYLE.bodyAlignment).toBe('left')
     expect(DEFAULT_STYLE.background).toBe('#ffffff')
     expect(DEFAULT_STYLE.text).toBe('#111111')
     expect(DEFAULT_STYLE.accent).toBe('#111111')
+  })
+
+  test('falls back to default text alignment when a styleset uses invalid values', () => {
+    const parsed = parseStylesetState(
+      JSON.stringify({
+        version: 1,
+        themePreset: 'classic',
+        pagePreset: 'a4',
+        horizontalMarginMm: 16,
+        verticalMarginMm: 16,
+        style: {
+          ...DEFAULT_STYLE,
+          headingAlignment: 'diagonal',
+          bodyAlignment: 'spread',
+        },
+        pageChrome: DEFAULT_PAGE_CHROME,
+      }),
+    )
+
+    expect(parsed.style.headingAlignment).toBe(DEFAULT_STYLE.headingAlignment)
+    expect(parsed.style.bodyAlignment).toBe(DEFAULT_STYLE.bodyAlignment)
   })
 
   test('flags only palette controls as custom-theme triggers', () => {
