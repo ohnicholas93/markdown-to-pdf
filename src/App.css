@@ -196,6 +196,11 @@ button:not([disabled]) {
   list-style-position: var(--page-list-style-position);
 }
 
+.markdown-body .compact-list {
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+
 .markdown-body ul {
   list-style: disc;
 }
@@ -222,7 +227,13 @@ button:not([disabled]) {
 
 .markdown-body li {
   display: list-item;
-  text-align: var(--page-body-align);
+  text-align: var(--page-list-text-align, var(--page-body-align));
+  text-align-last: var(--page-list-text-align, var(--page-body-align));
+}
+
+.markdown-body li > p {
+  text-align: var(--page-list-text-align, var(--page-body-align));
+  text-align-last: var(--page-list-text-align, var(--page-body-align));
 }
 
 .markdown-body li + li {
@@ -330,22 +341,6 @@ button:not([disabled]) {
     margin: 0;
   }
 
-  html,
-  body,
-  #root,
-  .app-shell,
-  .workspace,
-  .preview-pane,
-  .preview-stage,
-  .preview-stage__canvas,
-  .paged-preview {
-    margin: 0 !important;
-    padding: 0 !important;
-    min-height: 0 !important;
-    width: auto !important;
-    max-width: none !important;
-  }
-
   body::before {
     display: none;
   }
@@ -358,10 +353,13 @@ button:not([disabled]) {
     min-height: auto;
   }
 
+  .workspace,
   .preview-pane,
   .preview-stage,
   .preview-stage__canvas,
   .paged-preview {
+    margin: 0 !important;
+    padding: 0 !important;
     overflow: visible !important;
     background: transparent !important;
     box-shadow: none !important;
@@ -369,18 +367,15 @@ button:not([disabled]) {
     border: 0 !important;
   }
 
-  .paged-preview .pagedjs_pages {
-    display: block;
-    gap: 0;
-    padding-bottom: 0;
-    justify-content: initial;
-    align-content: initial;
-  }
-
   .paged-preview .pagedjs_page,
+  .paged-preview .pagedjs_sheet,
   .paged-preview .pagedjs_pagebox {
     margin: 0 !important;
     box-shadow: none !important;
     border-radius: 0 !important;
+  }
+
+  .paged-preview .pagedjs_pagebox {
+    overflow: visible !important;
   }
 }

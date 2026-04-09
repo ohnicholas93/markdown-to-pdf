@@ -1,5 +1,5 @@
-import type { CSSProperties, ChangeEvent, KeyboardEvent, ReactNode } from 'react'
-import { memo, useDeferredValue, useEffect, useEffectEvent, useRef, useState } from 'react'
+import type { CSSProperties, ChangeEvent, ComponentPropsWithoutRef, KeyboardEvent, ReactNode } from 'react'
+import { Children, isValidElement, memo, useDeferredValue, useEffect, useEffectEvent, useRef, useState } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import type { Previewer as PagedPreviewer } from 'pagedjs'
 import ReactMarkdown from 'react-markdown'
@@ -161,11 +161,99 @@ function SelectField({
   )
 }
 
+const MAX_COMPACT_LIST_ITEM_TEXT_LENGTH = 220
+const NON_COMPACT_LIST_TAGS = new Set([
+  'p',
+  'pre',
+  'blockquote',
+  'table',
+  'ul',
+  'ol',
+  'figure',
+  'div',
+  'img',
+  'svg',
+  'canvas',
+  'video',
+  'iframe',
+  'math',
+  'mjx-container',
+  'br',
+])
+
+const hasNonCompactListContent = (children: ReactNode): boolean =>
+  Children.toArray(children).some((child) => {
+    if (typeof child === 'string' || typeof child === 'number') {
+      return false
+    }
+
+    if (!isValidElement(child)) {
+      return false
+    }
+
+    if (typeof child.type === 'string' && NON_COMPACT_LIST_TAGS.has(child.type)) {
+      return true
+    }
+
+    return hasNonCompactListContent((child.props as { children?: ReactNode }).children)
+  })
+
+const getTextContentLength = (children: ReactNode): number =>
+  Children.toArray(children).reduce((total, child) => {
+    if (typeof child === 'string' || typeof child === 'number') {
+      return total + String(child).replace(/\s+/g, ' ').trim().length
+    }
+
+    if (!isValidElement(child)) {
+      return total
+    }
+
+    return total + getTextContentLength((child.props as { children?: ReactNode }).children)
+  }, 0)
+
+const isCompactList = (children: ReactNode): boolean => {
+  const listItems = Children.toArray(children).filter(
+    (child): child is React.ReactElement<{ children?: ReactNode }> =>
+      isValidElement(child) && child.type === 'li',
+  )
+
+  return (
+    listItems.length > 0 &&
+    listItems.length <= 4 &&
+    listItems.every(
+      (item) =>
+        !hasNonCompactListContent(item.props.children) &&
+        getTextContentLength(item.props.children) <= MAX_COMPACT_LIST_ITEM_TEXT_LENGTH,
+    )
+  )
+}
+
+const renderMarkdownList =
+  <T extends 'ul' | 'ol'>(Tag: T) =>
+  ({
+    children,
+    className,
+    ...props
+  }: ComponentPropsWithoutRef<T>) => {
+    const compactClassName = isCompactList(children) ? 'compact-list' : ''
+    const nextClassName = [className, compactClassName].filter(Boolean).join(' ')
+
+    return (
+      <Tag className={nextClassName || undefined} {...props}>
+        {children}
+      </Tag>
+    )
+  }
+
 export function DocumentContent({ markdown }: { markdown: string }) {
   return (
     <div className="document-root">
       <article className="markdown-body">
         <ReactMarkdown
+          components={{
+            ul: renderMarkdownList('ul'),
+            ol: renderMarkdownList('ol'),
+          }}
           remarkPlugins={[remarkGfm, remarkMath, [remarkDocumentMarkdownTransform, { markdown }]]}
           rehypePlugins={[rehypeRaw, rehypeMathjax]}
         >
@@ -703,6 +791,7 @@ function App() {
           listPaddingLeft: '0',
           listPaddingRight: '0',
           listStylePosition: 'inside',
+          listTextAlign: 'center',
         }
       : styleState.bodyAlignment === 'right'
         ? {
@@ -716,7 +805,22 @@ function App() {
             listPaddingLeft: '0',
             listPaddingRight: '1.3rem',
             listStylePosition: 'inside',
+            listTextAlign: 'right',
           }
+        : styleState.bodyAlignment === 'justify'
+          ? {
+              blockquotePaddingLeft: '1rem',
+              blockquotePaddingRight: '0',
+              blockquoteRuleLeft: '0',
+              blockquoteRuleRight: 'auto',
+              blockquoteRuleOpacity: '1',
+              displayMathMarginLeft: '0',
+              displayMathMarginRight: 'auto',
+              listPaddingLeft: '1.3rem',
+              listPaddingRight: '0',
+              listStylePosition: 'outside',
+              listTextAlign: 'left',
+            }
         : {
             blockquotePaddingLeft: '1rem',
             blockquotePaddingRight: '0',
@@ -728,6 +832,7 @@ function App() {
             listPaddingLeft: '1.3rem',
             listPaddingRight: '0',
             listStylePosition: 'outside',
+            listTextAlign: 'left',
           }
   const previewDocumentStyle = {
     '--page-background': styleState.background,
@@ -752,6 +857,7 @@ function App() {
     '--page-list-padding-left': bodyAlignmentLayout.listPaddingLeft,
     '--page-list-padding-right': bodyAlignmentLayout.listPaddingRight,
     '--page-list-style-position': bodyAlignmentLayout.listStylePosition,
+    '--page-list-text-align': bodyAlignmentLayout.listTextAlign,
   } as CSSProperties
 
   return (

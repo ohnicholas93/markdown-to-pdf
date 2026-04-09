@@ -1,6 +1,7 @@
 /// <reference lib="dom" />
 
 import { afterEach, beforeEach, describe, expect, test, vi } from 'bun:test'
+import { readFileSync } from 'node:fs'
 import { fireEvent, render, waitFor } from '@testing-library/react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import App, { DocumentContent } from '../src/App'
@@ -81,6 +82,14 @@ describe('App', () => {
     expect(parseFloat(main.style.getPropertyValue('--editor-width'))).toBeCloseTo(28)
   })
 
+  test('uses stable list alignment and explicit page breaks in the print stylesheet', () => {
+    const css = readFileSync(new URL('../src/App.css', import.meta.url), 'utf8')
+
+    expect(css).toContain('text-align: var(--page-list-text-align, var(--page-body-align));')
+    expect(css).toContain('text-align-last: var(--page-list-text-align, var(--page-body-align));')
+    expect(css).toContain('overflow: visible !important;')
+  })
+
   test('uses pane-local scroll containers in the desktop workspace', () => {
     const view = render(<App />)
     const main = view.getByRole('main')
@@ -114,6 +123,36 @@ describe('App', () => {
     expect(view.container.querySelector('.signature-line')?.getAttribute('style')).toBe(
       'width: 12ch;',
     )
+  })
+
+  test('marks short simple lists as compact and leaves loose lists splittable', () => {
+    const compact = render(<DocumentContent markdown={`- One\n- Two\n- Three`} />)
+    const loose = render(
+      <DocumentContent
+        markdown={`- One\n\n- First paragraph\n\n  Second paragraph\n\n- Three`}
+      />,
+    )
+    const longTight = render(
+      <DocumentContent
+        markdown={`- One\n- ${'Long tight item '.repeat(30)}\n- Three`}
+      />,
+    )
+    const media = render(
+      <DocumentContent
+        markdown={`- One\n- <img src="/logo.png" alt="Logo" />\n- Three`}
+      />,
+    )
+    const hardBreaks = render(
+      <DocumentContent
+        markdown={`- One\n- first line<br />second line<br />third line<br />fourth line\n- Three`}
+      />,
+    )
+
+    expect(compact.container.querySelector('ul')?.className).toContain('compact-list')
+    expect(loose.container.querySelector('ul')?.className ?? '').not.toContain('compact-list')
+    expect(longTight.container.querySelector('ul')?.className ?? '').not.toContain('compact-list')
+    expect(media.container.querySelector('ul')?.className ?? '').not.toContain('compact-list')
+    expect(hardBreaks.container.querySelector('ul')?.className ?? '').not.toContain('compact-list')
   })
 
   test('renders latex math in the live preview', () => {

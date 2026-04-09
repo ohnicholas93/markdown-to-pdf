@@ -73,6 +73,14 @@ describe('editor helpers', () => {
     expect(css).toContain("font-family: 'Playfair Display'")
     expect(css).toContain('text-align: center;')
     expect(css).toContain('text-align: justify;')
+    expect(css).toContain(
+      '.document-root .markdown-body .compact-list {\n  break-inside: avoid;',
+    )
+    expect(css).toContain('.document-root .markdown-body li {\n  text-align: left;')
+    expect(css).toContain('text-align-last: left;')
+    expect(css).not.toContain(
+      '.document-root .markdown-body li {\n  text-align: left;\n  text-align-last: left;\n  break-inside: avoid;',
+    )
     expect(css).toContain('letter-spacing: 0.015em;')
     expect(css).toContain('print-color-adjust: exact;')
   })

@@ -276,6 +276,7 @@ type BodyAlignmentLayout = {
   listPaddingLeft: string
   listPaddingRight: string
   listStylePosition: 'inside' | 'outside'
+  listTextAlign: 'left' | 'center' | 'right'
 }
 
 type MarkdownSelectionInput = {
@@ -1016,6 +1017,7 @@ const getBodyAlignmentLayout = (alignment: BodyTextAlignment): BodyAlignmentLayo
         listPaddingLeft: '0',
         listPaddingRight: '0',
         listStylePosition: 'inside',
+        listTextAlign: 'center',
       }
     case 'right':
       return {
@@ -1029,8 +1031,22 @@ const getBodyAlignmentLayout = (alignment: BodyTextAlignment): BodyAlignmentLayo
         listPaddingLeft: '0',
         listPaddingRight: '1.3rem',
         listStylePosition: 'inside',
+        listTextAlign: 'right',
       }
     case 'justify':
+      return {
+        blockquotePaddingLeft: '1rem',
+        blockquotePaddingRight: '0',
+        blockquoteRuleLeft: '0',
+        blockquoteRuleRight: 'auto',
+        blockquoteRuleOpacity: '1',
+        displayMathMarginLeft: '0',
+        displayMathMarginRight: 'auto',
+        listPaddingLeft: '1.3rem',
+        listPaddingRight: '0',
+        listStylePosition: 'outside',
+        listTextAlign: 'left',
+      }
     case 'left':
     default:
       return {
@@ -1044,6 +1060,7 @@ const getBodyAlignmentLayout = (alignment: BodyTextAlignment): BodyAlignmentLayo
         listPaddingLeft: '1.3rem',
         listPaddingRight: '0',
         listStylePosition: 'outside',
+        listTextAlign: 'left',
       }
   }
 }
@@ -1098,7 +1115,6 @@ export const buildPagedDocumentCss = ({
 .pagedjs_pagebox {
   box-shadow: 0 32px 60px rgba(0, 0, 0, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.55);
   border-radius: 24px;
-  overflow: hidden;
 }
 
 .pagedjs_margin {
@@ -1232,8 +1248,19 @@ export const buildPagedDocumentCss = ({
   list-style-position: ${bodyAlignmentLayout.listStylePosition};
 }
 
+.document-root .markdown-body .compact-list {
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+
 .document-root .markdown-body li {
-  text-align: ${style.bodyAlignment};
+  text-align: ${bodyAlignmentLayout.listTextAlign};
+  text-align-last: ${bodyAlignmentLayout.listTextAlign};
+}
+
+.document-root .markdown-body li > p {
+  text-align: ${bodyAlignmentLayout.listTextAlign};
+  text-align-last: ${bodyAlignmentLayout.listTextAlign};
 }
 
 .document-root .markdown-body li + li {
