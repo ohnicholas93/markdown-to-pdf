@@ -226,7 +226,7 @@ const hasNonCompactListContent = (children: ReactNode): boolean =>
   })
 
 const getTextContentLength = (children: ReactNode): number =>
-  Children.toArray(children).reduce((total, child) => {
+  Children.toArray(children).reduce<number>((total, child) => {
     if (typeof child === 'string' || typeof child === 'number') {
       return total + String(child).replace(/\s+/g, ' ').trim().length
     }
@@ -237,6 +237,29 @@ const getTextContentLength = (children: ReactNode): number =>
 
     return total + getTextContentLength((child.props as { children?: ReactNode }).children)
   }, 0)
+
+const buildListClassName = (children: ReactNode, className?: string) =>
+  [className, isCompactList(children) ? 'compact-list' : ''].filter(Boolean).join(' ') || undefined
+
+const MarkdownUnorderedList = ({
+  children,
+  className,
+  ...props
+}: ComponentPropsWithoutRef<'ul'>) => (
+  <ul className={buildListClassName(children, className)} {...props}>
+    {children}
+  </ul>
+)
+
+const MarkdownOrderedList = ({
+  children,
+  className,
+  ...props
+}: ComponentPropsWithoutRef<'ol'>) => (
+  <ol className={buildListClassName(children, className)} {...props}>
+    {children}
+  </ol>
+)
 
 const isCompactList = (children: ReactNode): boolean => {
   const listItems = Children.toArray(children).filter(
@@ -254,23 +277,6 @@ const isCompactList = (children: ReactNode): boolean => {
     )
   )
 }
-
-const renderMarkdownList =
-  <T extends 'ul' | 'ol'>(Tag: T) =>
-  ({
-    children,
-    className,
-    ...props
-  }: ComponentPropsWithoutRef<T>) => {
-    const compactClassName = isCompactList(children) ? 'compact-list' : ''
-    const nextClassName = [className, compactClassName].filter(Boolean).join(' ')
-
-    return (
-      <Tag className={nextClassName || undefined} {...props}>
-        {children}
-      </Tag>
-    )
-  }
 
 const preloadImageSource = (src: string) =>
   new Promise<void>((resolve) => {
@@ -375,8 +381,8 @@ export function DocumentContent({
         <ReactMarkdown
           components={{
             img: renderMarkdownImage,
-            ul: renderMarkdownList('ul'),
-            ol: renderMarkdownList('ol'),
+            ul: MarkdownUnorderedList,
+            ol: MarkdownOrderedList,
           }}
           remarkPlugins={[remarkGfm, remarkMath, [remarkDocumentMarkdownTransform, { markdown }]]}
           rehypePlugins={[rehypeRaw, rehypeMathjax]}
