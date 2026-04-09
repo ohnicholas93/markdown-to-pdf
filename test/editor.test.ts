@@ -81,6 +81,9 @@ describe('editor helpers', () => {
     expect(css).not.toContain(
       '.document-root .markdown-body li {\n  text-align: left;\n  text-align-last: left;\n  break-inside: avoid;',
     )
+    expect(css).toContain(
+      ".document-root .markdown-body mjx-container[jax='SVG'] path[data-c],\n.document-root .markdown-body mjx-container[jax='SVG'] use[data-c] {\n  stroke: none;\n  stroke-width: 0;",
+    )
     expect(css).toContain('letter-spacing: 0.015em;')
     expect(css).toContain('print-color-adjust: exact;')
   })

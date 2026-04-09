@@ -88,6 +88,8 @@ describe('App', () => {
     expect(css).toContain('text-align: var(--page-list-text-align, var(--page-body-align));')
     expect(css).toContain('text-align-last: var(--page-list-text-align, var(--page-body-align));')
     expect(css).toContain('overflow: visible !important;')
+    expect(css).toContain(".markdown-body mjx-container[jax='SVG'] path[data-c],")
+    expect(css).toContain('stroke-width: 0;')
   })
 
   test('uses pane-local scroll containers in the desktop workspace', () => {

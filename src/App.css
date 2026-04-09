@@ -330,6 +330,12 @@ button:not([disabled]) {
   height: auto;
 }
 
+.markdown-body mjx-container[jax='SVG'] path[data-c],
+.markdown-body mjx-container[jax='SVG'] use[data-c] {
+  stroke: none;
+  stroke-width: 0;
+}
+
 @media (min-width: 1024px) {
   .editor-pane {
     width: var(--editor-width);

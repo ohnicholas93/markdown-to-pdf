@@ -1358,6 +1358,12 @@ export const buildPagedDocumentCss = ({
   height: auto;
 }
 
+.document-root .markdown-body mjx-container[jax='SVG'] path[data-c],
+.document-root .markdown-body mjx-container[jax='SVG'] use[data-c] {
+  stroke: none;
+  stroke-width: 0;
+}
+
 @media print {
   .pagedjs_pagebox {
     box-shadow: none;
