@@ -78,6 +78,10 @@ describe('editor helpers', () => {
     )
     expect(css).toContain('.document-root .markdown-body li {\n  text-align: left;')
     expect(css).toContain('text-align-last: left;')
+    expect(css).toContain('.document-root .markdown-body figure {\n  width: fit-content;')
+    expect(css).toContain('.document-root .markdown-body img {\n  display: block;')
+    expect(css).toContain('.document-root .markdown-body figcaption {')
+    expect(css).toContain('.document-root .markdown-body .image-placeholder__frame {')
     expect(css).not.toContain(
       '.document-root .markdown-body li {\n  text-align: left;\n  text-align-last: left;\n  break-inside: avoid;',
     )

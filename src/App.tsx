@@ -47,6 +47,20 @@ import {
   type ThemePresetKey,
   type ThemeSelection,
 } from './lib/editor'
+import {
+  buildImageMarkdownSnippet,
+  buildUniqueImageAssetPath,
+  countImageAssetReferences,
+  createImageAssetFromFile,
+  formatFileSize,
+  isManagedImagePath,
+  normalizeImageAssetPath,
+  readStoredImageAssets,
+  replaceImageAssetPathReferences,
+  resolveImageAssetSource,
+  writeStoredImageAssets,
+  type ImageAsset,
+} from './lib/images'
 
 const SAMPLE_MARKDOWN = String.raw`# Editorial Markdown
 
@@ -123,6 +137,11 @@ const controlPanelClass =
 const isTestEnvironment =
   (globalThis as { __MARKDOWN_TO_PDF_TEST__?: boolean }).__MARKDOWN_TO_PDF_TEST__ === true
 
+type NoticeState = {
+  tone: 'default' | 'error'
+  message: string
+}
+
 function SelectField({
   ariaLabel,
   className,
@@ -195,6 +214,14 @@ const hasNonCompactListContent = (children: ReactNode): boolean =>
       return true
     }
 
+    if (
+      typeof (child.props as { src?: unknown; ['data-missing-src']?: unknown }).src === 'string' ||
+      typeof (child.props as { src?: unknown; ['data-missing-src']?: unknown })['data-missing-src'] ===
+        'string'
+    ) {
+      return true
+    }
+
     return hasNonCompactListContent((child.props as { children?: ReactNode }).children)
   })
 
@@ -245,12 +272,109 @@ const renderMarkdownList =
     )
   }
 
-export function DocumentContent({ markdown }: { markdown: string }) {
+const preloadImageSource = (src: string) =>
+  new Promise<void>((resolve) => {
+    if (!src || typeof Image === 'undefined') {
+      resolve()
+      return
+    }
+
+    const image = new Image()
+    let settled = false
+
+    const finish = () => {
+      if (settled) {
+        return
+      }
+
+      settled = true
+      resolve()
+    }
+
+    image.addEventListener('load', finish, { once: true })
+    image.addEventListener('error', finish, { once: true })
+    image.src = src
+
+    if (image.complete) {
+      finish()
+      return
+    }
+
+    if (typeof image.decode === 'function') {
+      void image.decode().then(finish).catch(() => {})
+    }
+  })
+
+const preloadDocumentImages = async (root: ParentNode) => {
+  const sources = Array.from(root.querySelectorAll('img'))
+    .map((image) => image.getAttribute('src')?.trim() ?? '')
+    .filter(Boolean)
+
+  await Promise.all(Array.from(new Set(sources)).map((src) => preloadImageSource(src)))
+}
+
+const stripImagePreloadLinks = (root: ParentNode) => {
+  root.querySelectorAll('link[rel="preload"][as="image"]').forEach((node) => node.remove())
+}
+
+type DocumentImageProps = ComponentPropsWithoutRef<'img'> & {
+  node?: unknown
+}
+
+export function DocumentContent({
+  markdown,
+  imageAssets = [],
+}: {
+  markdown: string
+  imageAssets?: ImageAsset[]
+}) {
+  const renderMarkdownImage = ({ alt, className, src, title, ...props }: DocumentImageProps) => {
+    const resolvedSrc = resolveImageAssetSource(src, imageAssets)
+    const nextClassName = ['document-image', className].filter(Boolean).join(' ')
+    const caption = typeof title === 'string' ? title.trim() : ''
+    const normalizedManagedPath = src ? normalizeImageAssetPath(src) : ''
+
+    if (!resolvedSrc && src && isManagedImagePath(src)) {
+      return (
+        <span className="image-placeholder" data-missing-src={normalizedManagedPath}>
+          <span className="image-placeholder__frame">Missing local image</span>
+          <span className="image-caption">{normalizedManagedPath}</span>
+        </span>
+      )
+    }
+
+    if (!resolvedSrc) {
+      return null
+    }
+
+    const image = (
+      <img
+        {...props}
+        alt={alt ?? ''}
+        className={nextClassName || undefined}
+        src={resolvedSrc}
+        title={title}
+      />
+    )
+
+    if (!caption) {
+      return image
+    }
+
+    return (
+      <>
+        {image}
+        <span className="image-caption">{caption}</span>
+      </>
+    )
+  }
+
   return (
     <div className="document-root">
       <article className="markdown-body">
         <ReactMarkdown
           components={{
+            img: renderMarkdownImage,
             ul: renderMarkdownList('ul'),
             ol: renderMarkdownList('ol'),
           }}
@@ -375,21 +499,32 @@ function App() {
   const [pageChrome, setPageChrome] = useState(DEFAULT_PAGE_CHROME)
   const [isControlsExpanded, setIsControlsExpanded] = useState(false)
   const [debouncedMarkdown, setDebouncedMarkdown] = useState(markdown)
-  const [stylesetNotice, setStylesetNotice] = useState<{
-    tone: 'default' | 'error'
-    message: string
-  } | null>(null)
+  const [stylesetNotice, setStylesetNotice] = useState<NoticeState | null>(null)
+  const [imageNotice, setImageNotice] = useState<NoticeState | null>(null)
+  const [imageAssets, setImageAssets] = useState<ImageAsset[]>(() => readStoredImageAssets())
+  const [imagePathDrafts, setImagePathDrafts] = useState<Record<string, string>>({})
+  const [isImageSidebarOpen, setIsImageSidebarOpen] = useState(true)
   const workspaceRef = useRef<HTMLDivElement | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
   const pagedPreviewRef = useRef<HTMLDivElement | null>(null)
   const previewStageRef = useRef<HTMLDivElement | null>(null)
   const previewerRef = useRef<PagedPreviewer | null>(null)
   const stylesetInputRef = useRef<HTMLInputElement | null>(null)
+  const imageInputRef = useRef<HTMLInputElement | null>(null)
+  const imageAssetsRef = useRef<ImageAsset[]>(imageAssets)
   const paletteCommitGenerationRef = useRef(0)
   const deferredMarkdown = useDeferredValue(debouncedMarkdown)
   const words = countWords(markdown)
   const characters = markdown.length
   const activePagePreset = PAGE_PRESETS[pagePreset]
+  const totalImageBytes = imageAssets.reduce((total, asset) => total + asset.size, 0)
+
+  useEffect(() => {
+    imageAssetsRef.current = imageAssets
+    setImagePathDrafts((current) =>
+      Object.fromEntries(imageAssets.map((asset) => [asset.id, current[asset.id] ?? asset.path])),
+    )
+  }, [imageAssets])
 
   const handlePointerMove = useEffectEvent((event: PointerEvent) => {
     if (!isResizing || !workspaceRef.current || window.innerWidth < 960) {
@@ -481,7 +616,10 @@ function App() {
 
     if (isTestEnvironment) {
       const source = document.createElement('template')
-      source.innerHTML = renderToStaticMarkup(<DocumentContent markdown={deferredMarkdown} />)
+      source.innerHTML = renderToStaticMarkup(
+        <DocumentContent markdown={deferredMarkdown} imageAssets={imageAssets} />,
+      )
+      stripImagePreloadLinks(source.content)
       container.replaceChildren(source.content.cloneNode(true))
       setPaginationError(null)
       setPageCount(1)
@@ -510,7 +648,12 @@ function App() {
         }
 
         const source = document.createElement('template')
-        source.innerHTML = renderToStaticMarkup(<DocumentContent markdown={deferredMarkdown} />)
+        source.innerHTML = renderToStaticMarkup(
+          <DocumentContent markdown={deferredMarkdown} imageAssets={imageAssets} />,
+        )
+
+        stripImagePreloadLinks(source.content)
+        await preloadDocumentImages(source.content)
 
         stagingContainer = document.createElement('div')
         stagingContainer.className = 'paged-preview paged-preview--staging'
@@ -596,6 +739,7 @@ function App() {
     deferredMarkdown,
     fontRenderVersion,
     horizontalMarginMm,
+    imageAssets,
     pageChrome,
     pagePreset,
     styleState,
@@ -643,6 +787,27 @@ function App() {
         [key]: value,
       }))
     }
+
+  const commitImageAssets = (nextAssets: ImageAsset[], notice?: NoticeState) => {
+    try {
+      writeStoredImageAssets(nextAssets)
+      imageAssetsRef.current = nextAssets
+      setImageAssets(nextAssets)
+      setImageNotice(
+        notice ?? {
+          tone: 'default',
+          message: nextAssets.length === 0 ? 'Removed all local images.' : 'Saved image library.',
+        },
+      )
+      return true
+    } catch {
+      setImageNotice({
+        tone: 'error',
+        message: 'Could not save images locally. Browser storage may be full.',
+      })
+      return false
+    }
+  }
 
   const handleThemePresetSelect = (preset: ThemePresetKey) => {
     paletteCommitGenerationRef.current += 1
@@ -735,6 +900,152 @@ function App() {
     if (event.key === 'ArrowRight') {
       setSplitRatio((current) => clamp(current + 0.03, 0.28, 0.72))
     }
+  }
+
+  const replaceEditorMarkdown = (nextMarkdown: string) => {
+    const textarea = textareaRef.current
+
+    if (textarea) {
+      textarea.value = nextMarkdown
+    }
+
+    syncEditorState(nextMarkdown)
+  }
+
+  const insertImageReference = (asset: ImageAsset) => {
+    const textarea = textareaRef.current
+
+    if (!textarea) {
+      return
+    }
+
+    const selectionStart = textarea.selectionStart
+    const selectionEnd = textarea.selectionEnd
+    const needsLeadingBreak =
+      selectionStart > 0 && !textarea.value.slice(Math.max(0, selectionStart - 2), selectionStart).includes('\n')
+    const needsTrailingBreak =
+      selectionEnd < textarea.value.length &&
+      !textarea.value.slice(selectionEnd, Math.min(textarea.value.length, selectionEnd + 2)).includes('\n')
+    const snippet = buildImageMarkdownSnippet(asset.path)
+    const replacement = `${needsLeadingBreak ? '\n' : ''}${snippet}${needsTrailingBreak ? '\n' : ''}`
+
+    textarea.focus()
+    textarea.setRangeText(replacement, selectionStart, selectionEnd, 'end')
+    syncEditorState(textarea.value)
+    setImageNotice({
+      tone: 'default',
+      message: `Inserted ${asset.path} into the document.`,
+    })
+  }
+
+  const handleImageUpload = async (event: ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(event.target.files ?? []).filter((file) => file.type.startsWith('image/'))
+
+    event.target.value = ''
+
+    if (files.length === 0) {
+      return
+    }
+
+    try {
+      const nextAssets = [...imageAssetsRef.current]
+
+      for (const file of files) {
+        nextAssets.push(await createImageAssetFromFile(file, nextAssets.map((asset) => asset.path)))
+      }
+
+      commitImageAssets(nextAssets, {
+        tone: 'default',
+        message:
+          files.length === 1
+            ? `Added ${files[0].name} to the local image library.`
+            : `Added ${files.length} images to the local image library.`,
+      })
+    } catch {
+      setImageNotice({
+        tone: 'error',
+        message: 'Could not import that image file.',
+      })
+    }
+  }
+
+  const handleImagePathDraftChange = (assetId: string, value: string) => {
+    setImagePathDrafts((current) => ({
+      ...current,
+      [assetId]: value,
+    }))
+  }
+
+  const commitImagePathRename = (assetId: string, draftValue?: string) => {
+    const currentAssets = imageAssetsRef.current
+    const asset = currentAssets.find((currentAsset) => currentAsset.id === assetId)
+
+    if (!asset) {
+      return
+    }
+
+    const draft = draftValue ?? imagePathDrafts[assetId] ?? asset.path
+    const nextPath = buildUniqueImageAssetPath(
+      draft,
+      currentAssets.filter((currentAsset) => currentAsset.id !== assetId).map((currentAsset) => currentAsset.path),
+    )
+
+    setImagePathDrafts((current) => ({
+      ...current,
+      [assetId]: nextPath,
+    }))
+
+    if (nextPath === asset.path) {
+      return
+    }
+
+    const nextAssets = currentAssets.map((currentAsset) =>
+      currentAsset.id === assetId
+        ? {
+            ...currentAsset,
+            path: nextPath,
+            updatedAt: new Date().toISOString(),
+          }
+        : currentAsset,
+    )
+
+    if (
+      commitImageAssets(nextAssets, {
+        tone: 'default',
+        message: `Renamed ${asset.path} to ${nextPath}.`,
+      })
+    ) {
+      replaceEditorMarkdown(replaceImageAssetPathReferences(markdown, asset.path, nextPath))
+    }
+  }
+
+  const handleDeleteImage = (assetId: string) => {
+    const currentAssets = imageAssetsRef.current
+    const asset = currentAssets.find((currentAsset) => currentAsset.id === assetId)
+
+    if (!asset) {
+      return
+    }
+
+    const referenceCount = countImageAssetReferences(markdown, asset.path)
+
+    if (
+      referenceCount > 0 &&
+      typeof window !== 'undefined' &&
+      !window.confirm(
+        `Remove ${asset.path} from the local image library? ${referenceCount} document reference${referenceCount === 1 ? '' : 's'} will stop rendering.`,
+      )
+    ) {
+      return
+    }
+
+    commitImageAssets(
+      currentAssets.filter((currentAsset) => currentAsset.id !== assetId),
+      {
+        tone: 'default',
+        message: `Removed ${asset.path} from the local image library.`,
+      },
+    )
   }
 
   const applyToolbarAction = (action: MarkdownActionKey) => {
@@ -861,7 +1172,214 @@ function App() {
   } as CSSProperties
 
   return (
-    <div className="app-shell min-h-screen text-[var(--chrome-text)] lg:h-screen lg:overflow-hidden print:min-h-0 print:h-auto print:overflow-visible">
+    <div className="app-shell min-h-screen text-[var(--chrome-text)] lg:flex lg:h-screen lg:overflow-hidden print:min-h-0 print:h-auto print:overflow-visible">
+      <input
+        ref={imageInputRef}
+        aria-label="Import local images"
+        className="sr-only"
+        type="file"
+        accept="image/*"
+        multiple
+        onChange={handleImageUpload}
+      />
+      {!isImageSidebarOpen ? (
+        <button
+          className="fixed left-0 top-1/2 z-30 -translate-y-1/2 rounded-r-xl border border-l-0 border-white/10 bg-[rgba(12,17,22,0.96)] px-2 py-4 text-[var(--chrome-muted)] shadow-[0_16px_40px_rgba(0,0,0,0.28)] backdrop-blur-xl transition hover:border-white/20 hover:bg-[rgba(18,24,31,0.98)] hover:text-[var(--chrome-text)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--chrome-accent)] print:hidden"
+          type="button"
+          aria-label="Open image library"
+          aria-controls="image-library-sidebar"
+          aria-expanded="false"
+          onClick={() => setIsImageSidebarOpen(true)}
+        >
+          <svg aria-hidden="true" className="h-4 w-4" viewBox="0 0 20 20" fill="none">
+            <path
+              d="m7 4 6 6-6 6"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+        </button>
+      ) : null}
+      <aside
+        id="image-library-sidebar"
+        className={`fixed inset-y-0 left-0 z-40 flex max-w-[calc(100vw-2.5rem)] flex-col border-r border-white/8 bg-[linear-gradient(180deg,rgba(12,17,22,0.98),rgba(8,11,15,0.96))] shadow-[0_24px_80px_rgba(0,0,0,0.42)] transition-[width,transform,opacity] duration-200 ease-out print:hidden lg:relative lg:z-auto lg:h-screen lg:max-w-none lg:shadow-none ${
+          isImageSidebarOpen
+            ? 'w-[21rem] translate-x-0 opacity-100 lg:w-[24rem]'
+            : 'w-[21rem] -translate-x-[calc(100%+1rem)] opacity-0 lg:w-0 lg:translate-x-0'
+        }`}
+        aria-hidden={!isImageSidebarOpen}
+      >
+        <div
+          className={`h-full min-h-0 overflow-hidden ${
+            isImageSidebarOpen ? 'pointer-events-auto' : 'pointer-events-none'
+          }`}
+        >
+          <div className="flex h-full min-h-0 flex-col">
+            <div className="border-b border-white/8 px-4 py-5">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className={controlLabelClass}>Image Library</p>
+                  <h2 className="mt-1 font-[var(--font-display)] text-[1.15rem] font-semibold tracking-[-0.03em] text-[var(--chrome-text)]">
+                    Local assets
+                  </h2>
+                  <p className="mt-1 text-sm text-[var(--chrome-muted)]">
+                    Stored in this browser and resolved by path, like <code>assets/diagram.png</code>.
+                  </p>
+                </div>
+                <button
+                  className="rounded-xl border border-white/10 bg-white/[0.04] px-2 py-3 text-[var(--chrome-muted)] transition hover:border-white/20 hover:bg-white/[0.08] hover:text-[var(--chrome-text)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--chrome-accent)]"
+                  type="button"
+                  aria-label="Close image library"
+                  aria-controls="image-library-sidebar"
+                  aria-expanded="true"
+                  onClick={() => setIsImageSidebarOpen(false)}
+                >
+                  <svg aria-hidden="true" className="h-4 w-4" viewBox="0 0 20 20" fill="none">
+                    <path
+                      d="m13 4-6 6 6 6"
+                      stroke="currentColor"
+                      strokeWidth="1.8"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                </button>
+              </div>
+              <div className="mt-4 flex flex-wrap items-center gap-2">
+                <span className="rounded-full border border-white/10 bg-black/[0.32] px-3 py-1.5 text-sm text-[var(--chrome-muted)]">
+                  {imageAssets.length} {imageAssets.length === 1 ? 'image' : 'images'}
+                </span>
+                <span className="rounded-full border border-white/10 bg-black/[0.32] px-3 py-1.5 text-sm text-[var(--chrome-muted)]">
+                  {formatFileSize(totalImageBytes)}
+                </span>
+                <button
+                  className="rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-sm font-semibold transition hover:border-white/20 hover:bg-white/[0.08]"
+                  type="button"
+                  onClick={() => imageInputRef.current?.click()}
+                >
+                  Add images
+                </button>
+              </div>
+              <div className="min-h-[1.25rem] pt-3 text-sm">
+                {imageNotice ? (
+                  <p
+                    className={`m-0 ${
+                      imageNotice.tone === 'error' ? 'text-amber-200' : 'text-[var(--chrome-muted)]'
+                    }`}
+                  >
+                    {imageNotice.message}
+                  </p>
+                ) : null}
+              </div>
+            </div>
+            <div className="min-h-0 flex-1 overflow-auto px-4 py-4">
+              {imageAssets.length === 0 ? (
+                <button
+                  className="flex w-full items-center justify-between gap-4 rounded-[1.1rem] border border-dashed border-white/14 bg-black/[0.18] px-4 py-4 text-left transition hover:border-[var(--chrome-accent)]/40 hover:bg-black/[0.24]"
+                  type="button"
+                  onClick={() => imageInputRef.current?.click()}
+                >
+                  <div>
+                    <p className="m-0 text-sm font-semibold text-[var(--chrome-text)]">
+                      Add the first local image
+                    </p>
+                    <p className="m-0 mt-1 text-sm text-[var(--chrome-muted)]">
+                      Upload PNG, JPG, GIF, SVG, or WebP and insert it into the Markdown editor by
+                      path.
+                    </p>
+                  </div>
+                  <span className="rounded-full border border-white/10 bg-white/[0.05] px-3 py-1.5 text-xs font-semibold tracking-[0.08em] text-[var(--chrome-text)]">
+                    Browse
+                  </span>
+                </button>
+              ) : (
+                <div className="grid gap-3">
+                  {imageAssets.map((asset) => (
+                    <article
+                      key={asset.id}
+                      className="grid gap-3 rounded-[1.15rem] border border-white/10 bg-black/[0.18] p-3"
+                    >
+                      <div className="overflow-hidden rounded-[0.95rem] border border-white/10 bg-[linear-gradient(145deg,rgba(255,255,255,0.08),rgba(255,255,255,0.02))]">
+                        <img
+                          alt={asset.path}
+                          className="h-32 w-full object-cover"
+                          src={asset.dataUrl}
+                        />
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2 text-[0.72rem] font-semibold uppercase tracking-[0.12em] text-[var(--chrome-muted)]">
+                          <span>{asset.mimeType}</span>
+                          <span className="text-white/20">•</span>
+                          <span>{formatFileSize(asset.size)}</span>
+                        </div>
+                        <label className="mt-2 grid gap-1.5">
+                          <span className={controlLabelClass}>Path</span>
+                          <input
+                            aria-label={`Image path ${asset.path}`}
+                            className={controlFieldClass}
+                            type="text"
+                            value={imagePathDrafts[asset.id] ?? asset.path}
+                            onChange={(event) =>
+                              handleImagePathDraftChange(asset.id, event.target.value)
+                            }
+                            onBlur={(event) =>
+                              commitImagePathRename(asset.id, event.currentTarget.value)
+                            }
+                            onKeyDown={(event) => {
+                              if (event.key === 'Enter') {
+                                event.preventDefault()
+                                commitImagePathRename(asset.id, event.currentTarget.value)
+                              }
+                            }}
+                          />
+                        </label>
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          <button
+                            className="rounded-full border border-transparent bg-[var(--chrome-accent)]/85 px-3 py-1.5 text-xs font-semibold text-[#14110f] transition hover:bg-[var(--chrome-accent)]"
+                            type="button"
+                            onClick={() => insertImageReference(asset)}
+                          >
+                            Insert
+                          </button>
+                          <button
+                            className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-xs font-semibold transition hover:border-white/20 hover:bg-white/[0.08]"
+                            type="button"
+                            onClick={() =>
+                              replaceEditorMarkdown(
+                                `${markdown}${markdown.endsWith('\n') ? '' : '\n'}${asset.path}\n`,
+                              )
+                            }
+                          >
+                            Append path
+                          </button>
+                          <button
+                            className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-xs font-semibold transition hover:border-amber-300/30 hover:bg-amber-300/10"
+                            type="button"
+                            onClick={() => handleDeleteImage(asset.id)}
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </aside>
+      {isImageSidebarOpen ? (
+        <button
+          className="fixed inset-0 z-30 bg-black/45 backdrop-blur-[1px] lg:hidden print:hidden"
+          type="button"
+          aria-label="Dismiss image library overlay"
+          onClick={() => setIsImageSidebarOpen(false)}
+        />
+      ) : null}
+      <div className="min-h-screen min-w-0 flex-1 lg:flex lg:h-screen lg:min-h-0 lg:flex-col">
       <header className="app-chrome sticky top-0 z-20 border-b border-white/10 bg-[linear-gradient(180deg,rgba(11,15,19,0.97),rgba(11,15,19,0.9)),var(--chrome-surface)] backdrop-blur-xl print:hidden">
         <div className="relative mx-auto flex max-w-[1600px] flex-col gap-3 px-6 py-4 sm:px-5">
           <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
@@ -1434,6 +1952,9 @@ function App() {
                 <span className="rounded-full bg-white/[0.05] px-3 py-1.5 text-sm text-[var(--chrome-muted)]">
                   {characters} characters
                 </span>
+                <span className="rounded-full bg-[rgba(201,115,66,0.12)] px-3 py-1.5 text-sm text-[var(--chrome-muted)]">
+                  {imageAssets.length} {imageAssets.length === 1 ? 'image' : 'images'}
+                </span>
               </div>
             </div>
 
@@ -1448,12 +1969,21 @@ function App() {
                   {action.label}
                 </button>
               ))}
+              <button
+                className="rounded-full border border-[var(--chrome-accent)]/35 bg-[var(--chrome-accent)]/10 px-3 py-0.5 text-xs font-semibold tracking-[0.08em] text-[var(--chrome-text)] transition hover:border-[var(--chrome-accent)]/60 hover:bg-[var(--chrome-accent)]/18"
+                type="button"
+                onClick={() => {
+                  setIsImageSidebarOpen(true)
+                  imageInputRef.current?.click()
+                }}
+              >
+                Upload Image
+              </button>
             </div>
           </div>
-
           <textarea
             aria-label="Markdown editor"
-            className="editor-input min-h-0 w-full resize-none overflow-auto border-0 bg-transparent px-5 py-5 text-[0.98rem] leading-7 text-[#f3efe6] outline-none placeholder:text-white/35"
+            className="editor-input min-h-0 h-full w-full resize-none overflow-auto border-0 bg-transparent px-5 py-5 text-[0.98rem] leading-7 text-[#f3efe6] outline-none placeholder:text-white/35"
             ref={textareaRef}
             defaultValue={SAMPLE_MARKDOWN}
             onInput={handleEditorInput}
@@ -1526,6 +2056,7 @@ function App() {
           </div>
         </section>
       </main>
+      </div>
     </div>
   )
 }

@@ -142,6 +142,7 @@ button:not([disabled]) {
 .markdown-body ul,
 .markdown-body ol,
 .markdown-body blockquote,
+.markdown-body figure,
 .markdown-body pre,
 .markdown-body table,
 .markdown-body hr {
@@ -238,6 +239,54 @@ button:not([disabled]) {
 
 .markdown-body li + li {
   margin-top: 0.4rem;
+}
+
+.markdown-body figure {
+  width: fit-content;
+  max-width: 100%;
+  margin-left: auto;
+  margin-right: auto;
+  text-align: center;
+}
+
+.markdown-body img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: 0 auto;
+  border-radius: 1rem;
+}
+
+.markdown-body figcaption {
+  margin-top: 0.7rem;
+  font-size: 0.82em;
+  letter-spacing: 0.03em;
+  color: color-mix(in srgb, var(--page-text) 72%, white 28%);
+}
+
+.markdown-body .image-placeholder {
+  display: block;
+  width: 100%;
+}
+
+.markdown-body .image-placeholder__frame {
+  display: block;
+  padding: 1.35rem 1rem;
+  border: 1px dashed color-mix(in srgb, var(--page-accent) 45%, white 30%);
+  border-radius: 1rem;
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--page-accent) 10%, transparent), transparent),
+    color-mix(in srgb, var(--page-background) 86%, var(--page-text) 14%);
+  color: color-mix(in srgb, var(--page-text) 82%, white 18%);
+}
+
+.markdown-body .image-caption {
+  display: block;
+  margin-top: 0.7rem;
+  font-size: 0.82em;
+  letter-spacing: 0.03em;
+  text-align: center;
+  color: color-mix(in srgb, var(--page-text) 72%, white 28%);
 }
 
 .markdown-body .signature-line {

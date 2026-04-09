@@ -5,6 +5,7 @@ import { readFileSync } from 'node:fs'
 import { fireEvent, render, waitFor } from '@testing-library/react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import App, { DocumentContent } from '../src/App'
+import { IMAGE_LIBRARY_STORAGE_KEY, type ImageAsset } from '../src/lib/images'
 import { countWords } from '../src/lib/editor'
 
 describe('App', () => {
@@ -88,6 +89,9 @@ describe('App', () => {
     expect(css).toContain('text-align: var(--page-list-text-align, var(--page-body-align));')
     expect(css).toContain('text-align-last: var(--page-list-text-align, var(--page-body-align));')
     expect(css).toContain('overflow: visible !important;')
+    expect(css).toContain('.markdown-body figure {')
+    expect(css).toContain('.markdown-body img {')
+    expect(css).toContain('.markdown-body .image-placeholder__frame {')
     expect(css).toContain(".markdown-body mjx-container[jax='SVG'] path[data-c],")
     expect(css).toContain('stroke-width: 0;')
   })
@@ -112,6 +116,34 @@ describe('App', () => {
     expect(view.getByText(`${countWords(editor.value)} words`)).toBeInTheDocument()
   })
 
+  test('toggles the image library sidebar from the editor pane', () => {
+    const view = render(<App />)
+    const sidebar = view.container.querySelector('#image-library-sidebar')
+    const closeButton = view.getByRole('button', { name: 'Close image library' })
+
+    expect(sidebar?.className ?? '').not.toMatch(/(^| )hidden( |$)/)
+    expect(closeButton).toHaveAttribute('aria-expanded', 'true')
+    expect(sidebar).toHaveAttribute('aria-hidden', 'false')
+
+    fireEvent.click(closeButton)
+
+    const openButton = view.getByRole('button', { name: 'Open image library' })
+
+    expect(openButton).toHaveAttribute(
+      'aria-expanded',
+      'false',
+    )
+    expect(sidebar).toHaveAttribute('aria-hidden', 'true')
+
+    fireEvent.click(openButton)
+
+    expect(view.getByRole('button', { name: 'Close image library' })).toHaveAttribute(
+      'aria-expanded',
+      'true',
+    )
+    expect(sidebar).toHaveAttribute('aria-hidden', 'false')
+  })
+
   test('renders markdown lists, raw html, and signature lines in the live preview', () => {
     const view = render(
       <DocumentContent
@@ -125,6 +157,29 @@ describe('App', () => {
     expect(view.container.querySelector('.signature-line')?.getAttribute('style')).toBe(
       'width: 12ch;',
     )
+  })
+
+  test('renders managed images, captions, and missing-image placeholders in the live preview', () => {
+    const imageAsset: ImageAsset = {
+      id: 'asset-1',
+      path: 'assets/cover.png',
+      mimeType: 'image/png',
+      size: 1024,
+      dataUrl: 'data:image/png;base64,AAA=',
+      createdAt: '2026-04-09T00:00:00.000Z',
+      updatedAt: '2026-04-09T00:00:00.000Z',
+    }
+    const view = render(
+      <DocumentContent
+        markdown={`![Cover](assets/cover.png "Front cover")\n\n![Missing](assets/missing.png)`}
+        imageAssets={[imageAsset]}
+      />,
+    )
+
+    expect((view.getByAltText('Cover') as HTMLImageElement).src).toContain(imageAsset.dataUrl)
+    expect(view.getByText('Front cover')).toBeInTheDocument()
+    expect(view.getByText('Missing local image')).toBeInTheDocument()
+    expect(view.getByText('assets/missing.png')).toBeInTheDocument()
   })
 
   test('marks short simple lists as compact and leaves loose lists splittable', () => {
@@ -414,6 +469,52 @@ g(x) &= \frac{x^3}{3}
     })
 
     expect((view.getByLabelText('Vertical margin') as HTMLInputElement).value).toBe('21')
+  })
+
+  test('uploads, inserts, renames, and removes local images from the editor library', async () => {
+    const originalConfirm = window.confirm
+    window.confirm = () => true
+
+    try {
+      const view = render(<App />)
+      const editor = view.getByLabelText('Markdown editor') as HTMLTextAreaElement
+      const file = new File(['image-binary'], 'diagram.png', { type: 'image/png' })
+
+      fireEvent.change(view.getByLabelText('Import local images'), {
+        target: { files: [file] },
+      })
+
+      await waitFor(() =>
+        expect(view.getByDisplayValue('assets/diagram.png')).toBeInTheDocument(),
+      )
+
+      expect(localStorage.getItem(IMAGE_LIBRARY_STORAGE_KEY)).toContain('assets/diagram.png')
+
+      fireEvent.click(view.getByText('Insert'))
+
+      expect(editor.value).toContain('![diagram](assets/diagram.png)')
+
+      const pathField = view.getByDisplayValue('assets/diagram.png') as HTMLInputElement
+      fireEvent.change(pathField, { target: { value: 'cover shot.png' } })
+      fireEvent.blur(pathField)
+
+      await waitFor(() =>
+        expect(view.getByDisplayValue('assets/cover-shot.png')).toBeInTheDocument(),
+      )
+
+      expect(editor.value).toContain('assets/cover-shot.png')
+      expect(editor.value).not.toContain('assets/diagram.png')
+
+      fireEvent.click(view.getByText('Remove'))
+
+      await waitFor(() =>
+        expect(view.queryByDisplayValue('assets/cover-shot.png')).toBeNull(),
+      )
+
+      expect(localStorage.getItem(IMAGE_LIBRARY_STORAGE_KEY)).toBeNull()
+    } finally {
+      window.confirm = originalConfirm
+    }
   })
 
   test('shows an error when a styleset JSON file is invalid', async () => {

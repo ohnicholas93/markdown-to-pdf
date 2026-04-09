@@ -1190,6 +1190,7 @@ export const buildPagedDocumentCss = ({
 .document-root .markdown-body ul,
 .document-root .markdown-body ol,
 .document-root .markdown-body blockquote,
+.document-root .markdown-body figure,
 .document-root .markdown-body pre,
 .document-root .markdown-body table,
 .document-root .markdown-body hr {
@@ -1265,6 +1266,52 @@ export const buildPagedDocumentCss = ({
 
 .document-root .markdown-body li + li {
   margin-top: 0.4rem;
+}
+
+.document-root .markdown-body figure {
+  width: fit-content;
+  max-width: 100%;
+  margin-left: auto;
+  margin-right: auto;
+  text-align: center;
+}
+
+.document-root .markdown-body img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: 0 auto;
+  border-radius: 1rem;
+}
+
+.document-root .markdown-body figcaption {
+  margin-top: 0.7rem;
+  font-size: 0.82em;
+  letter-spacing: 0.03em;
+  color: color-mix(in srgb, ${style.text} 72%, white 28%);
+}
+
+.document-root .markdown-body .image-placeholder {
+  display: block;
+  width: 100%;
+}
+
+.document-root .markdown-body .image-placeholder__frame {
+  display: block;
+  padding: 1.35rem 1rem;
+  border: 1px dashed color-mix(in srgb, ${style.accent} 45%, white 30%);
+  border-radius: 1rem;
+  background: linear-gradient(135deg, color-mix(in srgb, ${style.accent} 10%, transparent), transparent), color-mix(in srgb, ${style.background} 86%, ${style.text} 14%);
+  color: color-mix(in srgb, ${style.text} 82%, white 18%);
+}
+
+.document-root .markdown-body .image-caption {
+  display: block;
+  margin-top: 0.7rem;
+  font-size: 0.82em;
+  letter-spacing: 0.03em;
+  text-align: center;
+  color: color-mix(in srgb, ${style.text} 72%, white 28%);
 }
 
 .document-root .markdown-body code {
