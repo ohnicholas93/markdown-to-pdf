@@ -150,6 +150,12 @@ export const HEADING_TEXT_ALIGNMENTS = {
   right: 'Right',
 } as const
 
+export const HEADING_ALIGNMENT_KEYS = ['h1', 'h2', 'h3', 'h4', 'h5', 'h6'] as const
+export const HEADING_ALIGNMENT_MODES = {
+  set: 'Grouped',
+  custom: 'Individual',
+} as const
+
 export const BODY_TEXT_ALIGNMENTS = {
   left: 'Left',
   center: 'Center',
@@ -180,16 +186,22 @@ export type HeaderPosition = keyof typeof HEADER_POSITIONS
 export type FooterPosition = keyof typeof FOOTER_POSITIONS
 export type MarginBoxPosition = keyof typeof PAGE_NUMBER_POSITIONS
 export type HeadingTextAlignment = keyof typeof HEADING_TEXT_ALIGNMENTS
+export type HeadingAlignmentKey = (typeof HEADING_ALIGNMENT_KEYS)[number]
+export type HeadingAlignmentMode = keyof typeof HEADING_ALIGNMENT_MODES
 export type BodyTextAlignment = keyof typeof BODY_TEXT_ALIGNMENTS
 export type MarkdownActionKey = (typeof MARKDOWN_ACTIONS)[number]['key']
 export const MIN_CHROME_FONT_SIZE_PT = 7
 export const MAX_CHROME_FONT_SIZE_PT = 16
 export const DEFAULT_CHROME_FONT_SIZE_PT = 9
 
+export type HeadingAlignmentState = Record<HeadingAlignmentKey, HeadingTextAlignment>
+
 export type StyleState = {
   fontFamily: BodyFontPresetKey
   headingFamily: HeadingFontPresetKey
-  headingAlignment: HeadingTextAlignment
+  headingAlignmentMode: HeadingAlignmentMode
+  headingAlignments: HeadingAlignmentState
+  displayMathAlignment: HeadingTextAlignment
   bodyAlignment: BodyTextAlignment
   bodyFontSize: number
   headingBaseSize: number
@@ -226,7 +238,16 @@ export const PALETTE_STYLE_KEYS = ['background', 'text', 'accent'] as const
 export const DEFAULT_STYLE: StyleState = {
   fontFamily: 'literata',
   headingFamily: 'libre',
-  headingAlignment: 'left',
+  headingAlignmentMode: 'set',
+  headingAlignments: {
+    h1: 'left',
+    h2: 'left',
+    h3: 'left',
+    h4: 'left',
+    h5: 'left',
+    h6: 'left',
+  },
+  displayMathAlignment: 'center',
   bodyAlignment: 'left',
   bodyFontSize: 16,
   headingBaseSize: 22,
@@ -271,12 +292,16 @@ type BodyAlignmentLayout = {
   blockquoteRuleLeft: string
   blockquoteRuleRight: string
   blockquoteRuleOpacity: string
-  displayMathMarginLeft: string
-  displayMathMarginRight: string
   listPaddingLeft: string
   listPaddingRight: string
   listStylePosition: 'inside' | 'outside'
   listTextAlign: 'left' | 'center' | 'right'
+}
+
+type BlockAlignmentLayout = {
+  marginLeft: string
+  marginRight: string
+  textAlign: HeadingTextAlignment
 }
 
 type MarkdownSelectionInput = {
@@ -779,8 +804,42 @@ const isMarginBoxPosition = (value: unknown): value is MarginBoxPosition =>
 const isHeadingTextAlignment = (value: unknown): value is HeadingTextAlignment =>
   typeof value === 'string' && value in HEADING_TEXT_ALIGNMENTS
 
+const isHeadingAlignmentMode = (value: unknown): value is HeadingAlignmentMode =>
+  typeof value === 'string' && value in HEADING_ALIGNMENT_MODES
+
 const isBodyTextAlignment = (value: unknown): value is BodyTextAlignment =>
   typeof value === 'string' && value in BODY_TEXT_ALIGNMENTS
+
+const readHeadingAlignments = (
+  value: unknown,
+  fallback: HeadingAlignmentState,
+  legacyAlignment: unknown,
+): HeadingAlignmentState => {
+  const legacyFallback = isHeadingTextAlignment(legacyAlignment)
+    ? legacyAlignment
+    : DEFAULT_STYLE.headingAlignments.h1
+
+  if (!isRecord(value)) {
+    return HEADING_ALIGNMENT_KEYS.reduce<HeadingAlignmentState>(
+      (alignments, key) => ({
+        ...alignments,
+        [key]: legacyFallback,
+      }),
+      { ...fallback },
+    )
+  }
+
+  return HEADING_ALIGNMENT_KEYS.reduce<HeadingAlignmentState>(
+    (alignments, key) => ({
+      ...alignments,
+      [key]: isHeadingTextAlignment(value[key]) ? value[key] : fallback[key],
+    }),
+    { ...fallback },
+  )
+}
+
+const areHeadingAlignmentsUniform = (alignments: HeadingAlignmentState) =>
+  HEADING_ALIGNMENT_KEYS.every((key) => alignments[key] === alignments.h1)
 
 export const createStylesetState = ({
   themePreset,
@@ -813,6 +872,19 @@ export const parseStylesetState = (input: string): StylesetState => {
   const pageChrome = isRecord(parsed.pageChrome) ? parsed.pageChrome : {}
   const pagePreset = isPagePresetKey(parsed.pagePreset) ? parsed.pagePreset : DEFAULT_PAGE_PRESET
   const preset = PAGE_PRESETS[pagePreset]
+  const headingAlignments = readHeadingAlignments(
+    style.headingAlignments,
+    DEFAULT_STYLE.headingAlignments,
+    style.headingAlignment,
+  )
+  const hasUniformHeadingAlignments = areHeadingAlignmentsUniform(headingAlignments)
+  const headingAlignmentMode =
+    isHeadingAlignmentMode(style.headingAlignmentMode) &&
+    !(style.headingAlignmentMode === 'set' && !hasUniformHeadingAlignments)
+      ? style.headingAlignmentMode
+      : hasUniformHeadingAlignments
+        ? 'set'
+        : 'custom'
 
   return createStylesetState({
     themePreset: isThemeSelection(parsed.themePreset) ? parsed.themePreset : DEFAULT_THEME_PRESET,
@@ -838,9 +910,11 @@ export const parseStylesetState = (input: string): StylesetState => {
       headingFamily: isFontPresetKey(style.headingFamily)
         ? style.headingFamily
         : DEFAULT_STYLE.headingFamily,
-      headingAlignment: isHeadingTextAlignment(style.headingAlignment)
-        ? style.headingAlignment
-        : DEFAULT_STYLE.headingAlignment,
+      headingAlignmentMode,
+      headingAlignments,
+      displayMathAlignment: isHeadingTextAlignment(style.displayMathAlignment)
+        ? style.displayMathAlignment
+        : DEFAULT_STYLE.displayMathAlignment,
       bodyAlignment: isBodyTextAlignment(style.bodyAlignment)
         ? style.bodyAlignment
         : DEFAULT_STYLE.bodyAlignment,
@@ -1012,8 +1086,6 @@ const getBodyAlignmentLayout = (alignment: BodyTextAlignment): BodyAlignmentLayo
         blockquoteRuleLeft: 'auto',
         blockquoteRuleRight: 'auto',
         blockquoteRuleOpacity: '0',
-        displayMathMarginLeft: 'auto',
-        displayMathMarginRight: 'auto',
         listPaddingLeft: '0',
         listPaddingRight: '0',
         listStylePosition: 'inside',
@@ -1026,8 +1098,6 @@ const getBodyAlignmentLayout = (alignment: BodyTextAlignment): BodyAlignmentLayo
         blockquoteRuleLeft: 'auto',
         blockquoteRuleRight: '0',
         blockquoteRuleOpacity: '1',
-        displayMathMarginLeft: 'auto',
-        displayMathMarginRight: '0',
         listPaddingLeft: '0',
         listPaddingRight: '1.3rem',
         listStylePosition: 'inside',
@@ -1040,8 +1110,6 @@ const getBodyAlignmentLayout = (alignment: BodyTextAlignment): BodyAlignmentLayo
         blockquoteRuleLeft: '0',
         blockquoteRuleRight: 'auto',
         blockquoteRuleOpacity: '1',
-        displayMathMarginLeft: '0',
-        displayMathMarginRight: 'auto',
         listPaddingLeft: '1.3rem',
         listPaddingRight: '0',
         listStylePosition: 'outside',
@@ -1055,12 +1123,34 @@ const getBodyAlignmentLayout = (alignment: BodyTextAlignment): BodyAlignmentLayo
         blockquoteRuleLeft: '0',
         blockquoteRuleRight: 'auto',
         blockquoteRuleOpacity: '1',
-        displayMathMarginLeft: '0',
-        displayMathMarginRight: 'auto',
         listPaddingLeft: '1.3rem',
         listPaddingRight: '0',
         listStylePosition: 'outside',
         listTextAlign: 'left',
+      }
+  }
+}
+
+const getBlockAlignmentLayout = (alignment: HeadingTextAlignment): BlockAlignmentLayout => {
+  switch (alignment) {
+    case 'right':
+      return {
+        marginLeft: 'auto',
+        marginRight: '0',
+        textAlign: 'right',
+      }
+    case 'center':
+      return {
+        marginLeft: 'auto',
+        marginRight: 'auto',
+        textAlign: 'center',
+      }
+    case 'left':
+    default:
+      return {
+        marginLeft: '0',
+        marginRight: 'auto',
+        textAlign: 'left',
       }
   }
 }
@@ -1079,6 +1169,7 @@ export const buildPagedDocumentCss = ({
   const headingFont = HEADING_FONT_PRESETS[style.headingFamily]
   const chromeColor = withAlpha(style.text, 0.72)
   const bodyAlignmentLayout = getBodyAlignmentLayout(style.bodyAlignment)
+  const displayMathAlignmentLayout = getBlockAlignmentLayout(style.displayMathAlignment)
 
   return `
 @page {
@@ -1147,7 +1238,6 @@ export const buildPagedDocumentCss = ({
 .document-root .markdown-body h5,
 .document-root .markdown-body h6 {
   font-family: ${headingFont.family};
-  text-align: ${style.headingAlignment};
   line-height: 1.1;
   letter-spacing: -0.03em;
   margin: ${style.paragraphSpacing * 1.45}rem 0 ${style.paragraphSpacing * 0.6}rem;
@@ -1156,26 +1246,32 @@ export const buildPagedDocumentCss = ({
 }
 
 .document-root .markdown-body h1 {
+  text-align: ${style.headingAlignments.h1};
   font-size: ${style.headingBaseSize * 1.625}px;
 }
 
 .document-root .markdown-body h2 {
+  text-align: ${style.headingAlignments.h2};
   font-size: ${style.headingBaseSize * 1.25}px;
 }
 
 .document-root .markdown-body h3 {
+  text-align: ${style.headingAlignments.h3};
   font-size: ${style.headingBaseSize}px;
 }
 
 .document-root .markdown-body h4 {
+  text-align: ${style.headingAlignments.h4};
   font-size: ${style.headingBaseSize * 0.82}px;
 }
 
 .document-root .markdown-body h5 {
+  text-align: ${style.headingAlignments.h5};
   font-size: ${style.headingBaseSize * 0.68}px;
 }
 
 .document-root .markdown-body h6 {
+  text-align: ${style.headingAlignments.h6};
   font-size: ${style.headingBaseSize * 0.58}px;
 }
 
@@ -1386,8 +1482,8 @@ export const buildPagedDocumentCss = ({
 
 .document-root .markdown-body mjx-container[jax='SVG'][display='true'] {
   display: block;
-  text-align: ${style.bodyAlignment};
-  margin: 0 ${bodyAlignmentLayout.displayMathMarginRight} ${style.paragraphSpacing}rem ${bodyAlignmentLayout.displayMathMarginLeft};
+  text-align: ${displayMathAlignmentLayout.textAlign};
+  margin: 0 ${displayMathAlignmentLayout.marginRight} ${style.paragraphSpacing}rem ${displayMathAlignmentLayout.marginLeft};
   width: fit-content;
   max-width: 100%;
   break-inside: avoid;

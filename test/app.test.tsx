@@ -88,6 +88,8 @@ describe('App', () => {
 
     expect(css).toContain('text-align: var(--page-list-text-align, var(--page-body-align));')
     expect(css).toContain('text-align-last: var(--page-list-text-align, var(--page-body-align));')
+    expect(css).toContain('text-align: var(--page-h1-align);')
+    expect(css).toContain('text-align: var(--page-display-math-align);')
     expect(css).toContain('overflow: visible !important;')
     expect(css).toContain('.markdown-body figure {')
     expect(css).toContain('.markdown-body img {')
@@ -293,7 +295,16 @@ g(x) &= \frac{x^3}{3}
             accent: '#f2a65a',
             fontFamily: 'literata',
             headingFamily: 'libre',
-            headingAlignment: 'right',
+            headingAlignmentMode: 'set',
+            headingAlignments: {
+              h1: 'right',
+              h2: 'right',
+              h3: 'right',
+              h4: 'right',
+              h5: 'right',
+              h6: 'right',
+            },
+            displayMathAlignment: 'center',
             bodyAlignment: 'justify',
             bodyFontSize: 16,
             headingBaseSize: 22,
@@ -341,7 +352,10 @@ g(x) &= \frac{x^3}{3}
     expect(exported.horizontalMarginMm).toBe(14)
     expect(exported.verticalMarginMm).toBe(20)
     expect(exported.style.background).toBe('#191613')
-    expect(exported.style.headingAlignment).toBe('right')
+    expect(exported.style.headingAlignmentMode).toBe('set')
+    expect(exported.style.headingAlignments.h1).toBe('right')
+    expect(exported.style.headingAlignments.h6).toBe('right')
+    expect(exported.style.displayMathAlignment).toBe('center')
     expect(exported.style.bodyAlignment).toBe('justify')
     expect(exported.pageChrome.headerFontSizePt).toBe(12)
     expect(exported.pageChrome.footerFontSizePt).toBe(8)
@@ -366,7 +380,16 @@ g(x) &= \frac{x^3}{3}
           style: {
             fontFamily: 'space',
             headingFamily: 'playfair',
-            headingAlignment: 'center',
+            headingAlignmentMode: 'custom',
+            headingAlignments: {
+              h1: 'center',
+              h2: 'center',
+              h3: 'center',
+              h4: 'center',
+              h5: 'center',
+              h6: 'center',
+            },
+            displayMathAlignment: 'right',
             bodyAlignment: 'justify',
             bodyFontSize: 19,
             headingBaseSize: 31,
@@ -407,8 +430,22 @@ g(x) &= \frac{x^3}{3}
     expect((view.getByLabelText('Vertical margin') as HTMLInputElement).value).toBe('24')
     expect((view.getByLabelText('Body font') as HTMLSelectElement).value).toBe('space')
     expect((view.getByLabelText('Heading font') as HTMLSelectElement).value).toBe('playfair')
-    expect((view.getByLabelText('Heading alignment') as HTMLSelectElement).value).toBe('center')
-    expect((view.getByLabelText('Body alignment') as HTMLSelectElement).value).toBe('justify')
+    expect(view.getByRole('button', { name: 'Individual' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    )
+    expect(view.getByRole('radio', { name: 'H1 center aligned' })).toHaveAttribute(
+      'aria-checked',
+      'true',
+    )
+    expect(view.getByRole('radio', { name: 'Block LaTeX right aligned' })).toHaveAttribute(
+      'aria-checked',
+      'true',
+    )
+    expect(view.getByRole('radio', { name: 'Justify body text' })).toHaveAttribute(
+      'aria-checked',
+      'true',
+    )
     expect((view.getByLabelText('Paper') as HTMLInputElement).value).toBe('#f4efe8')
     expect((view.getByLabelText('Header text') as HTMLInputElement).value).toBe('Imported Header')
     expect((view.getByLabelText('Header size') as HTMLInputElement).value).toBe('13')
@@ -469,6 +506,46 @@ g(x) &= \frac{x^3}{3}
     })
 
     expect((view.getByLabelText('Vertical margin') as HTMLInputElement).value).toBe('21')
+    expect(view.getByRole('radio', { name: 'Grouped heading left aligned' })).toHaveAttribute(
+      'aria-checked',
+      'true',
+    )
+    expect(view.getByRole('button', { name: 'Grouped' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    )
+  })
+
+  test('switching from custom heading mode to set mode copies the h1 alignment to all headings', () => {
+    const view = render(<App />)
+
+    fireEvent.click(view.getByText('Document Settings'))
+    fireEvent.click(view.getByRole('button', { name: 'Individual' }))
+    fireEvent.click(view.getByRole('radio', { name: 'H1 right aligned' }))
+    fireEvent.click(view.getByRole('radio', { name: 'H3 center aligned' }))
+
+    expect(view.getByRole('radio', { name: 'H3 center aligned' })).toHaveAttribute(
+      'aria-checked',
+      'true',
+    )
+
+    fireEvent.click(view.getByRole('button', { name: 'Grouped' }))
+
+    expect(view.getByRole('radio', { name: 'Grouped heading right aligned' })).toHaveAttribute(
+      'aria-checked',
+      'true',
+    )
+
+    fireEvent.click(view.getByRole('button', { name: 'Individual' }))
+
+    expect(view.getByRole('radio', { name: 'H1 right aligned' })).toHaveAttribute(
+      'aria-checked',
+      'true',
+    )
+    expect(view.getByRole('radio', { name: 'H3 right aligned' })).toHaveAttribute(
+      'aria-checked',
+      'true',
+    )
   })
 
   test('uploads, inserts, renames, and removes local images from the editor library', async () => {

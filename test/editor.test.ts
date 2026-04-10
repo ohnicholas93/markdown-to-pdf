@@ -38,7 +38,15 @@ describe('editor helpers', () => {
         ...DEFAULT_STYLE,
         fontFamily: 'source',
         headingFamily: 'playfair',
-        headingAlignment: 'center',
+        headingAlignments: {
+          h1: 'center',
+          h2: 'left',
+          h3: 'right',
+          h4: 'center',
+          h5: 'left',
+          h6: 'right',
+        },
+        displayMathAlignment: 'right',
         bodyAlignment: 'justify',
         paragraphSpacing: 1.35,
         letterSpacing: 0.015,
@@ -72,6 +80,7 @@ describe('editor helpers', () => {
     expect(css).toContain("font-family: 'Source Serif 4'")
     expect(css).toContain("font-family: 'Playfair Display'")
     expect(css).toContain('text-align: center;')
+    expect(css).toContain('.document-root .markdown-body h3 {\n  text-align: right;')
     expect(css).toContain('text-align: justify;')
     expect(css).toContain(
       '.document-root .markdown-body .compact-list {\n  break-inside: avoid;',
@@ -88,15 +97,17 @@ describe('editor helpers', () => {
     expect(css).toContain(
       ".document-root .markdown-body mjx-container[jax='SVG'] path[data-c],\n.document-root .markdown-body mjx-container[jax='SVG'] use[data-c] {\n  stroke: none;\n  stroke-width: 0;",
     )
+    expect(css).toContain("mjx-container[jax='SVG'][display='true'] {\n  display: block;\n  text-align: right;")
     expect(css).toContain('letter-spacing: 0.015em;')
     expect(css).toContain('print-color-adjust: exact;')
   })
 
-  test('adjusts lists, blockquotes, and display math for right-aligned body copy', () => {
+  test('adjusts lists and blockquotes for right-aligned body copy while keeping block math separate', () => {
     const css = buildPagedDocumentCss({
       style: {
         ...DEFAULT_STYLE,
         bodyAlignment: 'right',
+        displayMathAlignment: 'center',
       },
       pagePreset: 'a4',
       horizontalMarginMm: 16,
@@ -110,7 +121,7 @@ describe('editor helpers', () => {
     expect(css).toContain('list-style-position: inside;')
     expect(css).toContain('padding-right: 1.3rem;')
     expect(css).toContain("mjx-container[jax='SVG'][display='true']")
-    expect(css).toContain('margin: 0 0 1.1rem auto;')
+    expect(css).toContain('margin: 0 auto 1.1rem auto;')
     expect(css).toContain("mjx-container[jax='SVG']:not([display='true']) > svg")
   })
 
@@ -169,7 +180,10 @@ describe('editor helpers', () => {
   test('uses a black and white classic print style by default', () => {
     expect(DEFAULT_STYLE.fontFamily).toBe('literata')
     expect(DEFAULT_STYLE.headingFamily).toBe('libre')
-    expect(DEFAULT_STYLE.headingAlignment).toBe('left')
+    expect(DEFAULT_STYLE.headingAlignmentMode).toBe('set')
+    expect(DEFAULT_STYLE.headingAlignments.h1).toBe('left')
+    expect(DEFAULT_STYLE.headingAlignments.h6).toBe('left')
+    expect(DEFAULT_STYLE.displayMathAlignment).toBe('center')
     expect(DEFAULT_STYLE.bodyAlignment).toBe('left')
     expect(DEFAULT_STYLE.background).toBe('#ffffff')
     expect(DEFAULT_STYLE.text).toBe('#111111')
@@ -186,15 +200,126 @@ describe('editor helpers', () => {
         verticalMarginMm: 16,
         style: {
           ...DEFAULT_STYLE,
-          headingAlignment: 'diagonal',
+          headingAlignments: {
+            ...DEFAULT_STYLE.headingAlignments,
+            h2: 'diagonal',
+          },
+          displayMathAlignment: 'diagonal',
           bodyAlignment: 'spread',
         },
         pageChrome: DEFAULT_PAGE_CHROME,
       }),
     )
 
-    expect(parsed.style.headingAlignment).toBe(DEFAULT_STYLE.headingAlignment)
+    expect(parsed.style.headingAlignments.h2).toBe(DEFAULT_STYLE.headingAlignments.h2)
+    expect(parsed.style.displayMathAlignment).toBe(DEFAULT_STYLE.displayMathAlignment)
     expect(parsed.style.bodyAlignment).toBe(DEFAULT_STYLE.bodyAlignment)
+  })
+
+  test('maps legacy single heading alignment values across all heading levels', () => {
+    const parsed = parseStylesetState(
+      JSON.stringify({
+        version: 1,
+        themePreset: 'classic',
+        pagePreset: 'a4',
+        horizontalMarginMm: 16,
+        verticalMarginMm: 16,
+        style: {
+          fontFamily: DEFAULT_STYLE.fontFamily,
+          headingFamily: DEFAULT_STYLE.headingFamily,
+          headingAlignment: 'right',
+          bodyAlignment: DEFAULT_STYLE.bodyAlignment,
+          bodyFontSize: DEFAULT_STYLE.bodyFontSize,
+          headingBaseSize: DEFAULT_STYLE.headingBaseSize,
+          lineHeight: DEFAULT_STYLE.lineHeight,
+          paragraphSpacing: DEFAULT_STYLE.paragraphSpacing,
+          letterSpacing: DEFAULT_STYLE.letterSpacing,
+          background: DEFAULT_STYLE.background,
+          text: DEFAULT_STYLE.text,
+          accent: DEFAULT_STYLE.accent,
+        },
+        pageChrome: DEFAULT_PAGE_CHROME,
+      }),
+    )
+
+    expect(parsed.style.headingAlignments.h1).toBe('right')
+    expect(parsed.style.headingAlignments.h6).toBe('right')
+    expect(parsed.style.headingAlignmentMode).toBe('set')
+  })
+
+  test('infers custom heading mode when imported heading alignments differ', () => {
+    const parsed = parseStylesetState(
+      JSON.stringify({
+        version: 1,
+        themePreset: 'classic',
+        pagePreset: 'a4',
+        horizontalMarginMm: 16,
+        verticalMarginMm: 16,
+        style: {
+          fontFamily: DEFAULT_STYLE.fontFamily,
+          headingFamily: DEFAULT_STYLE.headingFamily,
+          bodyAlignment: DEFAULT_STYLE.bodyAlignment,
+          bodyFontSize: DEFAULT_STYLE.bodyFontSize,
+          headingBaseSize: DEFAULT_STYLE.headingBaseSize,
+          lineHeight: DEFAULT_STYLE.lineHeight,
+          paragraphSpacing: DEFAULT_STYLE.paragraphSpacing,
+          letterSpacing: DEFAULT_STYLE.letterSpacing,
+          background: DEFAULT_STYLE.background,
+          text: DEFAULT_STYLE.text,
+          accent: DEFAULT_STYLE.accent,
+          headingAlignments: {
+            h1: 'left',
+            h2: 'center',
+            h3: 'left',
+            h4: 'left',
+            h5: 'left',
+            h6: 'left',
+          },
+        },
+        pageChrome: DEFAULT_PAGE_CHROME,
+      }),
+    )
+
+    expect(parsed.style.headingAlignmentMode).toBe('custom')
+  })
+
+  test('overrides imported set mode when heading alignments disagree', () => {
+    const parsed = parseStylesetState(
+      JSON.stringify({
+        version: 1,
+        themePreset: 'classic',
+        pagePreset: 'a4',
+        horizontalMarginMm: 16,
+        verticalMarginMm: 16,
+        style: {
+          fontFamily: DEFAULT_STYLE.fontFamily,
+          headingFamily: DEFAULT_STYLE.headingFamily,
+          headingAlignmentMode: 'set',
+          headingAlignments: {
+            h1: 'left',
+            h2: 'right',
+            h3: 'left',
+            h4: 'left',
+            h5: 'left',
+            h6: 'left',
+          },
+          displayMathAlignment: DEFAULT_STYLE.displayMathAlignment,
+          bodyAlignment: DEFAULT_STYLE.bodyAlignment,
+          bodyFontSize: DEFAULT_STYLE.bodyFontSize,
+          headingBaseSize: DEFAULT_STYLE.headingBaseSize,
+          lineHeight: DEFAULT_STYLE.lineHeight,
+          paragraphSpacing: DEFAULT_STYLE.paragraphSpacing,
+          letterSpacing: DEFAULT_STYLE.letterSpacing,
+          background: DEFAULT_STYLE.background,
+          text: DEFAULT_STYLE.text,
+          accent: DEFAULT_STYLE.accent,
+        },
+        pageChrome: DEFAULT_PAGE_CHROME,
+      }),
+    )
+
+    expect(parsed.style.headingAlignmentMode).toBe('custom')
+    expect(parsed.style.headingAlignments.h2).toBe('right')
   })
 
   test('flags only palette controls as custom-theme triggers', () => {
@@ -441,6 +566,7 @@ g(x) &= x^3
     expect(parsed.verticalMarginMm).toBe(24)
     expect(parsed.style.fontFamily).toBe('space')
     expect(parsed.style.accent).toBe('#f2a65a')
+    expect(parsed.style.headingAlignmentMode).toBe('set')
     expect(parsed.pageChrome.headerEnabled).toBe(true)
     expect(parsed.pageChrome.headerText).toBe('Draft')
     expect(parsed.pageChrome.headerFontSizePt).toBe(12)

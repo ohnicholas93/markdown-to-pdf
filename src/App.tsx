@@ -24,6 +24,8 @@ import {
   DEFAULT_VERTICAL_MARGIN_MM,
   FOOTER_POSITIONS,
   HEADER_POSITIONS,
+  HEADING_ALIGNMENT_KEYS,
+  HEADING_ALIGNMENT_MODES,
   HEADING_TEXT_ALIGNMENTS,
   HEADING_FONT_PRESETS,
   MARKDOWN_ACTIONS,
@@ -46,6 +48,9 @@ import {
   type StylesetState,
   type ThemePresetKey,
   type ThemeSelection,
+  type HeadingAlignmentKey,
+  type HeadingAlignmentMode,
+  type HeadingTextAlignment,
 } from './lib/editor'
 import {
   buildImageMarkdownSnippet,
@@ -133,13 +138,20 @@ const controlFieldClass =
   'rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-sm text-[var(--chrome-text)] outline-none transition focus:border-[var(--chrome-accent)] focus:ring-2 focus:ring-[var(--chrome-accent)]/30'
 const controlSelectClass = `${controlFieldClass} w-full appearance-none pr-11`
 const controlPanelClass =
-  'grid gap-3 rounded-[1.25rem] border border-white/10 bg-white/[0.04] p-4 md:grid-cols-2 2xl:grid-cols-4'
+  'grid gap-3 rounded-[1.25rem] border border-white/10 bg-white/[0.04] p-4 md:grid-cols-2 2xl:grid-cols-[1fr_2.5fr_1.5fr_1.5fr]'
 const isTestEnvironment =
   (globalThis as { __MARKDOWN_TO_PDF_TEST__?: boolean }).__MARKDOWN_TO_PDF_TEST__ === true
 
 type NoticeState = {
   tone: 'default' | 'error'
   message: string
+}
+
+const bodyAlignmentOptionLabels: Record<keyof typeof BODY_TEXT_ALIGNMENTS, string> = {
+  left: 'Align body left',
+  center: 'Align body center',
+  right: 'Align body right',
+  justify: 'Justify body text',
 }
 
 function SelectField({
@@ -176,6 +188,87 @@ function SelectField({
           />
         </svg>
       </span>
+    </div>
+  )
+}
+
+const applyHeadingAlignmentToAll = (alignment: HeadingTextAlignment): StyleState['headingAlignments'] =>
+  HEADING_ALIGNMENT_KEYS.reduce<StyleState['headingAlignments']>(
+    (alignments, key) => ({
+      ...alignments,
+      [key]: alignment,
+    }),
+    { ...DEFAULT_STYLE.headingAlignments },
+  )
+
+const AlignmentOptionIcon = ({
+  value,
+}: {
+  value: keyof typeof BODY_TEXT_ALIGNMENTS | HeadingTextAlignment
+}) => {
+  const lines =
+    value === 'left'
+      ? ['w-5', 'w-4', 'w-5']
+      : value === 'center'
+        ? ['w-4', 'w-5', 'w-4']
+        : value === 'right'
+          ? ['w-5 ml-auto', 'w-4 ml-auto', 'w-5 ml-auto']
+          : ['w-5', 'w-5', 'w-5']
+
+  return (
+    <span className="flex flex-col items-center justify-center gap-1.5" aria-hidden="true">
+      {lines.map((lineClass, index) => (
+        <span
+          key={`${value}-${index}`}
+          className={`block h-[2px] rounded-full bg-current ${lineClass}`}
+        />
+      ))}
+    </span>
+  )
+}
+
+function AlignmentSelector<OptionValue extends string>({
+  ariaLabel,
+  value,
+  onChange,
+  options,
+}: {
+  ariaLabel: string
+  value: OptionValue
+  onChange: (value: OptionValue) => void
+  options: ReadonlyArray<{
+    value: OptionValue
+    label: string
+  }>
+}) {
+  return (
+    <div
+      role="radiogroup"
+      aria-label={ariaLabel}
+      className="grid auto-cols-fr grid-flow-col gap-1 rounded-xl border border-white/10 bg-black/20 p-1"
+    >
+      {options.map((option) => {
+        const isSelected = option.value === value
+
+        return (
+          <button
+            key={option.value}
+            type="button"
+            role="radio"
+            aria-checked={isSelected}
+            aria-label={option.label}
+            title={option.label}
+            className={`flex h-10 items-center justify-center rounded-lg border text-[var(--chrome-text)] transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--chrome-accent)] ${
+              isSelected
+                ? 'border-[var(--chrome-accent)]/70 bg-[var(--chrome-accent)]/18 text-[var(--chrome-accent)]'
+                : 'border-transparent bg-transparent text-[var(--chrome-muted)] hover:border-white/10 hover:bg-white/[0.04] hover:text-[var(--chrome-text)]'
+            }`}
+            onClick={() => onChange(option.value)}
+          >
+            <AlignmentOptionIcon value={option.value} />
+          </button>
+        )
+      })}
     </div>
   )
 }
@@ -322,6 +415,25 @@ const preloadDocumentImages = async (root: ParentNode) => {
 const stripImagePreloadLinks = (root: ParentNode) => {
   root.querySelectorAll('link[rel="preload"][as="image"]').forEach((node) => node.remove())
 }
+
+const getDisplayMathAlignmentLayout = (alignment: HeadingTextAlignment) =>
+  alignment === 'right'
+    ? {
+        marginLeft: 'auto',
+        marginRight: '0',
+        textAlign: 'right',
+      }
+    : alignment === 'center'
+      ? {
+          marginLeft: 'auto',
+          marginRight: 'auto',
+          textAlign: 'center',
+        }
+      : {
+          marginLeft: '0',
+          marginRight: 'auto',
+          textAlign: 'left',
+        }
 
 type DocumentImageProps = ComponentPropsWithoutRef<'img'> & {
   node?: unknown
@@ -781,6 +893,48 @@ function App() {
       }))
     }
 
+  const updateHeadingAlignmentMode = (mode: HeadingAlignmentMode) => {
+    setStyleState((current) => {
+      if (mode === current.headingAlignmentMode) {
+        return current
+      }
+
+      if (mode === 'set') {
+        return {
+          ...current,
+          headingAlignmentMode: 'set',
+          headingAlignments: applyHeadingAlignmentToAll(current.headingAlignments.h1),
+        }
+      }
+
+      return {
+        ...current,
+        headingAlignmentMode: 'custom',
+      }
+    })
+  }
+
+  const updateSetHeadingAlignment = (alignment: HeadingTextAlignment) => {
+    setStyleState((current) => ({
+      ...current,
+      headingAlignmentMode: 'set',
+      headingAlignments: applyHeadingAlignmentToAll(alignment),
+    }))
+  }
+
+  const updateCustomHeadingAlignment = (
+    level: HeadingAlignmentKey,
+    alignment: HeadingTextAlignment,
+  ) => {
+    setStyleState((current) => ({
+      ...current,
+      headingAlignments: {
+        ...current.headingAlignments,
+        [level]: alignment,
+      },
+    }))
+  }
+
   const updatePaletteStyle =
     (key: 'background' | 'text' | 'accent') => (value: string, generation: number) => {
       if (generation !== paletteCommitGenerationRef.current) {
@@ -1103,8 +1257,6 @@ function App() {
           blockquoteRuleLeft: 'auto',
           blockquoteRuleRight: 'auto',
           blockquoteRuleOpacity: '0',
-          displayMathMarginLeft: 'auto',
-          displayMathMarginRight: 'auto',
           listPaddingLeft: '0',
           listPaddingRight: '0',
           listStylePosition: 'inside',
@@ -1117,8 +1269,6 @@ function App() {
             blockquoteRuleLeft: 'auto',
             blockquoteRuleRight: '0',
             blockquoteRuleOpacity: '1',
-            displayMathMarginLeft: 'auto',
-            displayMathMarginRight: '0',
             listPaddingLeft: '0',
             listPaddingRight: '1.3rem',
             listStylePosition: 'inside',
@@ -1131,8 +1281,6 @@ function App() {
               blockquoteRuleLeft: '0',
               blockquoteRuleRight: 'auto',
               blockquoteRuleOpacity: '1',
-              displayMathMarginLeft: '0',
-              displayMathMarginRight: 'auto',
               listPaddingLeft: '1.3rem',
               listPaddingRight: '0',
               listStylePosition: 'outside',
@@ -1144,13 +1292,12 @@ function App() {
             blockquoteRuleLeft: '0',
             blockquoteRuleRight: 'auto',
             blockquoteRuleOpacity: '1',
-            displayMathMarginLeft: '0',
-            displayMathMarginRight: 'auto',
             listPaddingLeft: '1.3rem',
             listPaddingRight: '0',
             listStylePosition: 'outside',
             listTextAlign: 'left',
           }
+  const displayMathAlignmentLayout = getDisplayMathAlignmentLayout(styleState.displayMathAlignment)
   const previewDocumentStyle = {
     '--page-background': styleState.background,
     '--page-text': styleState.text,
@@ -1162,15 +1309,21 @@ function App() {
     '--page-line-height': String(styleState.lineHeight),
     '--page-letter-spacing': `${styleState.letterSpacing}em`,
     '--page-block-spacing': `${styleState.paragraphSpacing}rem`,
-    '--page-heading-align': styleState.headingAlignment,
+    '--page-h1-align': styleState.headingAlignments.h1,
+    '--page-h2-align': styleState.headingAlignments.h2,
+    '--page-h3-align': styleState.headingAlignments.h3,
+    '--page-h4-align': styleState.headingAlignments.h4,
+    '--page-h5-align': styleState.headingAlignments.h5,
+    '--page-h6-align': styleState.headingAlignments.h6,
+    '--page-display-math-align': displayMathAlignmentLayout.textAlign,
     '--page-body-align': styleState.bodyAlignment,
     '--page-blockquote-padding-left': bodyAlignmentLayout.blockquotePaddingLeft,
     '--page-blockquote-padding-right': bodyAlignmentLayout.blockquotePaddingRight,
     '--page-blockquote-rule-left': bodyAlignmentLayout.blockquoteRuleLeft,
     '--page-blockquote-rule-right': bodyAlignmentLayout.blockquoteRuleRight,
     '--page-blockquote-rule-opacity': bodyAlignmentLayout.blockquoteRuleOpacity,
-    '--page-display-math-margin-left': bodyAlignmentLayout.displayMathMarginLeft,
-    '--page-display-math-margin-right': bodyAlignmentLayout.displayMathMarginRight,
+    '--page-display-math-margin-left': displayMathAlignmentLayout.marginLeft,
+    '--page-display-math-margin-right': displayMathAlignmentLayout.marginRight,
     '--page-list-padding-left': bodyAlignmentLayout.listPaddingLeft,
     '--page-list-padding-right': bodyAlignmentLayout.listPaddingRight,
     '--page-list-style-position': bodyAlignmentLayout.listStylePosition,
@@ -1460,7 +1613,7 @@ function App() {
                       ))}
                     </SelectField>
                   </label>
-                  <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="grid gap-3">
                     <label className="grid gap-1.5">
                       <span className={controlLabelClass}>Horizontal margin</span>
                       <input
@@ -1537,43 +1690,123 @@ function App() {
                       ))}
                     </SelectField>
                   </label>
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <label className="grid gap-1.5">
-                      <span className={controlLabelClass}>Heading alignment</span>
-                      <SelectField
-                        ariaLabel="Heading alignment"
-                        value={styleState.headingAlignment}
-                        onChange={(event) =>
-                          updateStyle('headingAlignment')(
-                            event.target.value as StyleState['headingAlignment'],
-                          )
-                        }
-                      >
-                        {Object.entries(HEADING_TEXT_ALIGNMENTS).map(([key, label]) => (
-                          <option key={key} value={key}>
-                            {label}
-                          </option>
-                        ))}
-                      </SelectField>
-                    </label>
-                    <label className="grid gap-1.5">
-                      <span className={controlLabelClass}>Body alignment</span>
-                      <SelectField
-                        ariaLabel="Body alignment"
-                        value={styleState.bodyAlignment}
-                        onChange={(event) =>
-                          updateStyle('bodyAlignment')(
-                            event.target.value as StyleState['bodyAlignment'],
-                          )
-                        }
-                      >
-                        {Object.entries(BODY_TEXT_ALIGNMENTS).map(([key, label]) => (
-                          <option key={key} value={key}>
-                            {label}
-                          </option>
-                        ))}
-                      </SelectField>
-                    </label>
+                  <div className="grid gap-3">
+                    <div className="grid gap-2">
+                      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                        <div className={controlLabelClass}>Heading alignment</div>
+                        <div className="grid grid-cols-2 gap-1 rounded-lg border border-white/10 bg-black/20 p-1">
+                            {(Object.entries(HEADING_ALIGNMENT_MODES) as Array<
+                              [HeadingAlignmentMode, string]
+                            >).map(([key, label]) => {
+                              const isSelected = styleState.headingAlignmentMode === key
+
+                              return (
+                                <button
+                                  key={key}
+                                  type="button"
+                                  aria-pressed={isSelected}
+                                  className={`rounded-lg border px-3 py-1 text-sm font-medium transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--chrome-accent)] ${
+                                    isSelected
+                                      ? 'border-[var(--chrome-accent)]/70 bg-[var(--chrome-accent)]/18 text-[var(--chrome-accent)]'
+                                      : 'border-transparent bg-transparent text-[var(--chrome-muted)] hover:border-white/10 hover:bg-white/[0.04] hover:text-[var(--chrome-text)]'
+                                  }`}
+                                  onClick={() => updateHeadingAlignmentMode(key)}
+                                >
+                                  {label}
+                                </button>
+                              )
+                            })}
+                          </div>
+                      </div>
+                      <div className="grid gap-3">
+                        <div
+                          className={`grid gap-2 ${
+                            styleState.headingAlignmentMode === 'set'
+                              ? 'md:grid-cols-2 xl:grid-cols-3'
+                              : 'sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4'
+                          }`}
+                        >
+                          {styleState.headingAlignmentMode === 'set' ? (
+                            <div className="grid gap-1.5">
+                              <span className="text-sm font-medium text-[var(--chrome-text)]">
+                                Heading group
+                              </span>
+                              <AlignmentSelector
+                                ariaLabel="Grouped heading alignment"
+                                value={styleState.headingAlignments.h1}
+                                onChange={updateSetHeadingAlignment}
+                                options={Object.entries(HEADING_TEXT_ALIGNMENTS).map(
+                                  ([key, label]) => ({
+                                    value: key as HeadingTextAlignment,
+                                    label: `Grouped heading ${label.toLowerCase()} aligned`,
+                                  }),
+                                )}
+                              />
+                            </div>
+                          ) : (
+                            HEADING_ALIGNMENT_KEYS.map((level) => (
+                              <div key={level} className="grid gap-1.5">
+                                <span className="text-sm font-medium text-[var(--chrome-text)]">
+                                  {level.toUpperCase()}
+                                </span>
+                                <AlignmentSelector
+                                  ariaLabel={`${level.toUpperCase()} alignment`}
+                                  value={styleState.headingAlignments[level]}
+                                  onChange={(nextAlignment) =>
+                                    updateCustomHeadingAlignment(level, nextAlignment)
+                                  }
+                                  options={Object.entries(HEADING_TEXT_ALIGNMENTS).map(
+                                    ([key, label]) => ({
+                                      value: key as HeadingTextAlignment,
+                                      label: `${level.toUpperCase()} ${label.toLowerCase()} aligned`,
+                                    }),
+                                  )}
+                                />
+                              </div>
+                            ))
+                          )}
+                          <div className="grid gap-1.5">
+                            <span className="text-sm font-medium text-[var(--chrome-text)]">
+                              Body
+                            </span>
+                            <AlignmentSelector
+                              ariaLabel="Body alignment"
+                              value={styleState.bodyAlignment}
+                              onChange={(nextAlignment) =>
+                                updateStyle('bodyAlignment')(nextAlignment)
+                              }
+                              options={Object.entries(BODY_TEXT_ALIGNMENTS).map(
+                                ([key, label]) => ({
+                                  value: key as StyleState['bodyAlignment'],
+                                  label:
+                                    bodyAlignmentOptionLabels[
+                                      key as keyof typeof BODY_TEXT_ALIGNMENTS
+                                    ] ?? `Body ${label.toLowerCase()}`,
+                                  }),
+                              )}
+                            />
+                          </div>
+                          <div className="grid gap-1.5">
+                            <span className="text-sm font-medium text-[var(--chrome-text)]">
+                              LaTeX block
+                            </span>
+                            <AlignmentSelector
+                              ariaLabel="Block LaTeX alignment"
+                              value={styleState.displayMathAlignment}
+                              onChange={(nextAlignment) =>
+                                updateStyle('displayMathAlignment')(nextAlignment)
+                              }
+                              options={Object.entries(HEADING_TEXT_ALIGNMENTS).map(
+                                ([key, label]) => ({
+                                  value: key as HeadingTextAlignment,
+                                  label: `Block LaTeX ${label.toLowerCase()} aligned`,
+                                }),
+                              )}
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                   <div className="grid gap-3 sm:grid-cols-2">
                     <label className="grid gap-1.5">
