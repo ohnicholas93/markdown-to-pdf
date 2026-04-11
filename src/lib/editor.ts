@@ -226,6 +226,7 @@ export type PageChromeState = {
 }
 export type StylesetState = {
   version: 1
+  documentTitle: string
   themePreset: ThemeSelection
   pagePreset: PagePresetKey
   horizontalMarginMm: number
@@ -261,6 +262,8 @@ export const DEFAULT_STYLE: StyleState = {
 
 export const DEFAULT_PAGE_PRESET: PagePresetKey = 'a4'
 export const DEFAULT_THEME_PRESET: ThemePresetKey = 'classic'
+export const DEFAULT_DOCUMENT_TITLE = ''
+export const FALLBACK_DOCUMENT_TITLE = 'PDF'
 export const DEFAULT_HORIZONTAL_MARGIN_MM = 16
 export const DEFAULT_VERTICAL_MARGIN_MM = 16
 export const MIN_HORIZONTAL_MARGIN_MM = 0
@@ -842,6 +845,7 @@ const areHeadingAlignmentsUniform = (alignments: HeadingAlignmentState) =>
   HEADING_ALIGNMENT_KEYS.every((key) => alignments[key] === alignments.h1)
 
 export const createStylesetState = ({
+  documentTitle,
   themePreset,
   pagePreset,
   horizontalMarginMm,
@@ -850,6 +854,7 @@ export const createStylesetState = ({
   pageChrome,
 }: Omit<StylesetState, 'version'>): StylesetState => ({
   version: 1,
+  documentTitle,
   themePreset,
   pagePreset,
   horizontalMarginMm,
@@ -887,6 +892,7 @@ export const parseStylesetState = (input: string): StylesetState => {
         : 'custom'
 
   return createStylesetState({
+    documentTitle: readString(parsed.documentTitle, DEFAULT_DOCUMENT_TITLE),
     themePreset: isThemeSelection(parsed.themePreset) ? parsed.themePreset : DEFAULT_THEME_PRESET,
     pagePreset,
     horizontalMarginMm: clampHorizontalMarginMm(

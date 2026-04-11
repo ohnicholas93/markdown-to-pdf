@@ -4,6 +4,7 @@ import remarkParse from 'remark-parse'
 import {
   applyMarkdownAstTransforms,
   createStylesetState,
+  DEFAULT_DOCUMENT_TITLE,
   DEFAULT_PAGE_CHROME,
   DEFAULT_STYLE,
   applyThemePreset,
@@ -539,6 +540,7 @@ g(x) &= x^3
   test('serializes and parses stylesets as JSON', () => {
     const json = serializeStylesetState(
       createStylesetState({
+        documentTitle: 'Specimen Draft',
         themePreset: 'noir',
         pagePreset: 'legal',
         horizontalMarginMm: 22,
@@ -560,6 +562,7 @@ g(x) &= x^3
     const parsed = parseStylesetState(json)
 
     expect(parsed.version).toBe(1)
+    expect(parsed.documentTitle).toBe('Specimen Draft')
     expect(parsed.themePreset).toBe('noir')
     expect(parsed.pagePreset).toBe('legal')
     expect(parsed.horizontalMarginMm).toBe(22)
@@ -586,6 +589,7 @@ g(x) &= x^3
 
     expect(parsed.horizontalMarginMm).toBe(19)
     expect(parsed.verticalMarginMm).toBe(19)
+    expect(parsed.documentTitle).toBe(DEFAULT_DOCUMENT_TITLE)
   })
 
   test('rejects unsupported styleset versions', () => {

@@ -21,8 +21,12 @@ const coerceStorage = (storage?: StorageLike | null) => {
     return storage
   }
 
-  if (typeof window !== 'undefined' && 'localStorage' in window) {
-    return window.localStorage
+  try {
+    if (typeof window !== 'undefined' && 'localStorage' in window) {
+      return window.localStorage
+    }
+  } catch {
+    return null
   }
 
   return null

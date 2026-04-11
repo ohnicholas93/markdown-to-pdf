@@ -12,6 +12,8 @@ import {
   BODY_FONT_PRESETS,
   BODY_TEXT_ALIGNMENTS,
   createStylesetState,
+  DEFAULT_DOCUMENT_TITLE,
+  FALLBACK_DOCUMENT_TITLE,
   MAX_CHROME_FONT_SIZE_PT,
   MIN_HORIZONTAL_MARGIN_MM,
   MIN_CHROME_FONT_SIZE_PT,
@@ -52,6 +54,11 @@ import {
   type HeadingAlignmentMode,
   type HeadingTextAlignment,
 } from './lib/editor'
+import {
+  readStoredMarkdown,
+  removeStoredMarkdown,
+  writeStoredMarkdown,
+} from './lib/markdown'
 import {
   buildImageMarkdownSnippet,
   buildUniqueImageAssetPath,
@@ -602,7 +609,15 @@ const PaletteColorField = memo(function PaletteColorField({
 })
 
 function App() {
-  const [markdown, setMarkdown] = useState(SAMPLE_MARKDOWN)
+  const initialStoredMarkdownRef = useRef<string | null>(null)
+  const hasPersistedMarkdownRef = useRef(false)
+  const skipNextMarkdownPersistRef = useRef(false)
+  const [markdown, setMarkdown] = useState(() => {
+    const storedMarkdown = readStoredMarkdown()
+    initialStoredMarkdownRef.current = storedMarkdown
+
+    return storedMarkdown ?? SAMPLE_MARKDOWN
+  })
   const [splitRatio, setSplitRatio] = useState(0.42)
   const [isResizing, setIsResizing] = useState(false)
   const [isPaginating, setIsPaginating] = useState(false)
@@ -610,6 +625,7 @@ function App() {
   const [paginationError, setPaginationError] = useState<string | null>(null)
   const [fontRenderVersion, setFontRenderVersion] = useState(0)
   const [styleState, setStyleState] = useState(DEFAULT_STYLE)
+  const [pdfTitle, setPdfTitle] = useState(DEFAULT_DOCUMENT_TITLE)
   const [pagePreset, setPagePreset] = useState<PagePresetKey>(DEFAULT_PAGE_PRESET)
   const [themePreset, setThemePreset] = useState<ThemeSelection>(DEFAULT_THEME_PRESET)
   const [horizontalMarginMm, setHorizontalMarginMm] = useState(DEFAULT_HORIZONTAL_MARGIN_MM)
@@ -673,6 +689,31 @@ function App() {
       window.clearTimeout(timer)
     }
   }, [markdown])
+
+  useEffect(() => {
+    if (skipNextMarkdownPersistRef.current) {
+      skipNextMarkdownPersistRef.current = false
+      return
+    }
+
+    if (!hasPersistedMarkdownRef.current) {
+      hasPersistedMarkdownRef.current = true
+
+      if (initialStoredMarkdownRef.current === null && markdown === SAMPLE_MARKDOWN) {
+        return
+      }
+    }
+
+    void writeStoredMarkdown(markdown)
+  }, [markdown])
+
+  useEffect(() => {
+    if (typeof document === 'undefined') {
+      return
+    }
+
+    document.title = pdfTitle.trim() || FALLBACK_DOCUMENT_TITLE
+  }, [pdfTitle])
 
   useEffect(() => {
     if (!isResizing) {
@@ -978,6 +1019,7 @@ function App() {
   const resetAll = () => {
     paletteCommitGenerationRef.current += 1
     setStyleState(DEFAULT_STYLE)
+    setPdfTitle(DEFAULT_DOCUMENT_TITLE)
     setPagePreset(DEFAULT_PAGE_PRESET)
     setThemePreset(DEFAULT_THEME_PRESET)
     setHorizontalMarginMm(DEFAULT_HORIZONTAL_MARGIN_MM)
@@ -988,6 +1030,7 @@ function App() {
 
   const buildStylesetState = (): StylesetState =>
     createStylesetState({
+      documentTitle: pdfTitle.trim() || DEFAULT_DOCUMENT_TITLE,
       themePreset,
       pagePreset,
       horizontalMarginMm,
@@ -1026,6 +1069,7 @@ function App() {
       const imported = parseStylesetState(await file.text())
 
       paletteCommitGenerationRef.current += 1
+      setPdfTitle(imported.documentTitle)
       setThemePreset(imported.themePreset)
       setPagePreset(imported.pagePreset)
       setHorizontalMarginMm(imported.horizontalMarginMm)
@@ -1070,6 +1114,19 @@ function App() {
     }
 
     syncEditorState(nextMarkdown)
+  }
+
+  const resetMarkdownToDemo = () => {
+    if (
+      typeof window !== 'undefined' &&
+      !window.confirm('Reset the markdown editor to the default demo template?')
+    ) {
+      return
+    }
+
+    skipNextMarkdownPersistRef.current = true
+    void removeStoredMarkdown()
+    replaceEditorMarkdown(SAMPLE_MARKDOWN)
   }
 
   const insertImageReference = (asset: ImageAsset) => {
@@ -1568,6 +1625,13 @@ function App() {
               <button
                 className="rounded-full border border-white/10 bg-black/[0.8] px-4 py-2 text-sm font-semibold transition hover:-translate-y-0.5 hover:border-white/20 hover:bg-black/[0.9] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--chrome-accent)]"
                 type="button"
+                onClick={resetMarkdownToDemo}
+              >
+                Reset
+              </button>
+              <button
+                className="rounded-full border border-white/10 bg-black/[0.8] px-4 py-2 text-sm font-semibold transition hover:-translate-y-0.5 hover:border-white/20 hover:bg-black/[0.9] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--chrome-accent)]"
+                type="button"
                 aria-expanded={isControlsExpanded}
                 aria-controls="document-settings"
                 onClick={() => setIsControlsExpanded((current) => !current)}
@@ -1599,6 +1663,17 @@ function App() {
                       Page Setup
                     </h2>
                   </div>
+                  <label className="grid gap-1.5">
+                    <span className={controlLabelClass}>PDF title</span>
+                    <input
+                      aria-label="PDF title"
+                      className={controlFieldClass}
+                      placeholder={FALLBACK_DOCUMENT_TITLE}
+                      type="text"
+                      value={pdfTitle}
+                      onChange={(event) => setPdfTitle(event.target.value)}
+                    />
+                  </label>
                   <label className="grid gap-1.5">
                     <span className={controlLabelClass}>Page</span>
                     <SelectField
@@ -2224,7 +2299,7 @@ function App() {
             aria-label="Markdown editor"
             className="editor-input min-h-0 h-full w-full resize-none overflow-auto border-0 bg-transparent px-5 py-5 text-[0.98rem] leading-7 text-[#f3efe6] outline-none placeholder:text-white/35"
             ref={textareaRef}
-            defaultValue={SAMPLE_MARKDOWN}
+            defaultValue={markdown}
             onInput={handleEditorInput}
             spellCheck={false}
           />
@@ -2242,7 +2317,7 @@ function App() {
           <span className="block h-20 w-[0.3rem] rounded-full bg-[linear-gradient(180deg,rgba(201,115,66,0.1),rgba(201,115,66,0.9),rgba(201,115,66,0.1))]" />
         </div>
 
-        <section className="preview-pane flex min-h-[32rem] min-w-0 flex-1 flex-col overflow-hidden rounded-[1.4rem] border border-white/10 bg-[rgba(8,11,15,0.72)] backdrop-blur-xl lg:min-h-0 lg:rounded-l-none lg:border-l-0 print:min-h-0 print:rounded-none print:border-0 print:bg-transparent">
+        <section className="preview-pane flex min-h-[32rem] min-w-0 flex-1 flex-col overflow-hidden rounded-[1.4rem] border border-white/10 bg-[rgba(8,11,15,0.72)] backdrop-blur-xl lg:min-h-0 lg:rounded-l-none s print:min-h-0 print:rounded-none print:border-0 print:bg-transparent">
           <div className="preview-pane__header border-b border-white/8 px-5 py-4 print:hidden">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div>

@@ -90,6 +90,27 @@ describe('image library helpers', () => {
     expect(readStoredImageAssets()).toEqual([asset])
   })
 
+  test('treats localStorage getter failures as an empty image library', () => {
+    const descriptor = Object.getOwnPropertyDescriptor(window, 'localStorage')
+
+    Object.defineProperty(window, 'localStorage', {
+      configurable: true,
+      get: () => {
+        throw new Error('denied')
+      },
+    })
+
+    try {
+      expect(readStoredImageAssets()).toEqual([])
+    } finally {
+      if (descriptor) {
+        Object.defineProperty(window, 'localStorage', descriptor)
+      } else {
+        delete (window as Window & { localStorage?: Storage }).localStorage
+      }
+    }
+  })
+
   test('returns undefined for missing managed asset paths and leaves external sources alone', () => {
     const asset = createImageAsset()
 

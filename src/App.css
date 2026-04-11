@@ -401,6 +401,13 @@ button:not([disabled]) {
     margin: 0;
   }
 
+  html,
+  body,
+  #root,
+  .app-shell {
+    background: #fff !important;
+  }
+
   body::before {
     display: none;
   }
@@ -417,7 +424,10 @@ button:not([disabled]) {
   .preview-pane,
   .preview-stage,
   .preview-stage__canvas,
-  .paged-preview {
+  .paged-preview,
+  .paged-preview .pagedjs_pages {
+    min-height: 0 !important;
+    height: auto !important;
     margin: 0 !important;
     padding: 0 !important;
     overflow: visible !important;
@@ -437,5 +447,9 @@ button:not([disabled]) {
 
   .paged-preview .pagedjs_pagebox {
     overflow: visible !important;
+  }
+
+  .paged-preview .pagedjs_pages {
+    gap: 0 !important;
   }
 }

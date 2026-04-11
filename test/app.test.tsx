@@ -6,7 +6,8 @@ import { fireEvent, render, waitFor } from '@testing-library/react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import App, { DocumentContent } from '../src/App'
 import { IMAGE_LIBRARY_STORAGE_KEY, type ImageAsset } from '../src/lib/images'
-import { countWords } from '../src/lib/editor'
+import { MARKDOWN_STORAGE_KEY } from '../src/lib/markdown'
+import { countWords, DEFAULT_DOCUMENT_TITLE, DEFAULT_PAGE_CHROME, DEFAULT_STYLE } from '../src/lib/editor'
 
 describe('App', () => {
   let createObjectURLMock: ReturnType<typeof vi.fn>
@@ -96,6 +97,10 @@ describe('App', () => {
     expect(css).toContain('.markdown-body .image-placeholder__frame {')
     expect(css).toContain(".markdown-body mjx-container[jax='SVG'] path[data-c],")
     expect(css).toContain('stroke-width: 0;')
+    expect(css).toContain('html,')
+    expect(css).toContain('background: #fff !important;')
+    expect(css).toContain('min-height: 0 !important;')
+    expect(css).toContain('gap: 0 !important;')
   })
 
   test('uses pane-local scroll containers in the desktop workspace', () => {
@@ -116,6 +121,46 @@ describe('App', () => {
 
     expect(editor.value).toBe('# Changed\n\nBody copy')
     expect(view.getByText(`${countWords(editor.value)} words`)).toBeInTheDocument()
+  })
+
+  test('loads persisted markdown and can reset back to the default demo template', () => {
+    const originalConfirm = window.confirm
+    window.confirm = () => true
+
+    try {
+      localStorage.setItem(MARKDOWN_STORAGE_KEY, '# Saved draft\n\nPersisted copy')
+
+      const view = render(<App />)
+      const editor = view.getByLabelText('Markdown editor') as HTMLTextAreaElement
+
+      expect(editor.value).toBe('# Saved draft\n\nPersisted copy')
+
+      fireEvent.click(view.getByRole('button', { name: 'Reset' }))
+
+      expect(editor.value).toContain('# Editorial Markdown')
+      expect(localStorage.getItem(MARKDOWN_STORAGE_KEY)).toBeNull()
+    } finally {
+      window.confirm = originalConfirm
+    }
+  })
+
+  test('does not reset markdown when reset confirmation is cancelled', () => {
+    const originalConfirm = window.confirm
+    window.confirm = () => false
+
+    try {
+      localStorage.setItem(MARKDOWN_STORAGE_KEY, '# Saved draft\n\nPersisted copy')
+
+      const view = render(<App />)
+      const editor = view.getByLabelText('Markdown editor') as HTMLTextAreaElement
+
+      fireEvent.click(view.getByRole('button', { name: 'Reset' }))
+
+      expect(editor.value).toBe('# Saved draft\n\nPersisted copy')
+      expect(localStorage.getItem(MARKDOWN_STORAGE_KEY)).toBe('# Saved draft\n\nPersisted copy')
+    } finally {
+      window.confirm = originalConfirm
+    }
   })
 
   test('toggles the image library sidebar from the editor pane', () => {
@@ -279,12 +324,56 @@ g(x) &= \frac{x^3}{3}
     expect((view.getByLabelText('Paper') as HTMLInputElement).value).toBe('#ffffff')
   })
 
+  test('reset settings restores the default pdf title', async () => {
+    const view = render(<App />)
+
+    fireEvent.click(view.getByText('Document Settings'))
+
+    const file = new File(
+      [
+        JSON.stringify({
+          version: 1,
+          documentTitle: 'Quarterly Report',
+          themePreset: 'classic',
+          pagePreset: 'a4',
+          horizontalMarginMm: 16,
+          verticalMarginMm: 16,
+          style: {
+            ...DEFAULT_STYLE,
+          },
+          pageChrome: {
+            ...DEFAULT_PAGE_CHROME,
+          },
+        }),
+      ],
+      'title-reset.json',
+      { type: 'application/json' },
+    )
+
+    fireEvent.change(view.getByLabelText('Import styleset JSON'), {
+      target: { files: [file] },
+    })
+
+    await waitFor(() => {
+      expect((view.getByLabelText('PDF title') as HTMLInputElement).value).toBe('Quarterly Report')
+    })
+
+    fireEvent.click(view.getByText('Reset settings'))
+
+    await waitFor(() => {
+      expect((view.getByLabelText('PDF title') as HTMLInputElement).value).toBe(
+        DEFAULT_DOCUMENT_TITLE,
+      )
+    })
+  })
+
   test('exports the current styleset as JSON', async () => {
     const view = render(<App />)
     const file = new File(
       [
         JSON.stringify({
           version: 1,
+          documentTitle: 'Noir Specimen',
           themePreset: 'noir',
           pagePreset: 'a4',
           horizontalMarginMm: 14,
@@ -347,6 +436,7 @@ g(x) &= \frac{x^3}{3}
     const exported = JSON.parse(await blob.text())
 
     expect(exported.version).toBe(1)
+    expect(exported.documentTitle).toBe('Noir Specimen')
     expect(exported.themePreset).toBe('noir')
     expect(exported.pagePreset).toBe('a4')
     expect(exported.horizontalMarginMm).toBe(14)
@@ -373,6 +463,7 @@ g(x) &= \frac{x^3}{3}
       [
         JSON.stringify({
           version: 1,
+          documentTitle: 'Imported Portfolio',
           themePreset: 'custom',
           pagePreset: 'legal',
           horizontalMarginMm: 22,
@@ -428,6 +519,7 @@ g(x) &= \frac{x^3}{3}
 
     expect((view.getByLabelText('Horizontal margin') as HTMLInputElement).value).toBe('22')
     expect((view.getByLabelText('Vertical margin') as HTMLInputElement).value).toBe('24')
+    expect((view.getByLabelText('PDF title') as HTMLInputElement).value).toBe('Imported Portfolio')
     expect((view.getByLabelText('Body font') as HTMLSelectElement).value).toBe('space')
     expect((view.getByLabelText('Heading font') as HTMLSelectElement).value).toBe('playfair')
     expect(view.getByRole('button', { name: 'Individual' })).toHaveAttribute(
