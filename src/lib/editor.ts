@@ -27,7 +27,7 @@ export const THEME_PRESETS = {
     label: 'Warm Editorial',
     background: '#f7f1e3',
     text: '#1f2329',
-    accent: '#c97342',
+    accent: '#4281c9',
   },
   slate: {
     label: 'Slate Room',
@@ -1428,8 +1428,8 @@ export const buildPagedDocumentCss = ({
   overflow: hidden;
   padding: 1rem 1.1rem;
   border-radius: 1rem;
-  background: #201b19;
-  color: #f7f1e3;
+  background: #161d28;
+  color: #edf4ff;
   break-inside: avoid;
   white-space: pre-wrap;
 }
@@ -1443,8 +1443,8 @@ export const buildPagedDocumentCss = ({
 
 .document-root .markdown-body table {
   width: 100%;
-  border-collapse: collapse;
-  overflow: hidden;
+  border-collapse: separate;
+  border-spacing: 0;
   border-radius: 1rem;
   break-inside: auto;
 }
@@ -1462,13 +1462,42 @@ export const buildPagedDocumentCss = ({
 .document-root .markdown-body th,
 .document-root .markdown-body td {
   padding: 0.75rem 0.85rem;
-  border: 1px solid color-mix(in srgb, ${style.text} 12%, white 72%);
+  border-right: 1px solid color-mix(in srgb, ${style.text} 12%, white 72%);
+  border-bottom: 1px solid color-mix(in srgb, ${style.text} 12%, white 72%);
   text-align: left;
   vertical-align: top;
 }
 
 .document-root .markdown-body th {
   background: color-mix(in srgb, ${style.accent} 12%, white 72%);
+}
+
+.document-root .markdown-body tr > :first-child {
+  border-left: 1px solid color-mix(in srgb, ${style.text} 12%, white 72%);
+}
+
+.document-root .markdown-body thead tr:first-child > * {
+  border-top: 1px solid color-mix(in srgb, ${style.text} 12%, white 72%);
+}
+
+.document-root .markdown-body tbody tr:last-child > * {
+  border-bottom: 1px solid color-mix(in srgb, ${style.text} 12%, white 72%);
+}
+
+.document-root .markdown-body thead tr:first-child > :first-child {
+  border-top-left-radius: 1rem;
+}
+
+.document-root .markdown-body thead tr:first-child > :last-child {
+  border-top-right-radius: 1rem;
+}
+
+.document-root .markdown-body tbody tr:last-child > :first-child {
+  border-bottom-left-radius: 1rem;
+}
+
+.document-root .markdown-body tbody tr:last-child > :last-child {
+  border-bottom-right-radius: 1rem;
 }
 
 .document-root .markdown-body mjx-container {

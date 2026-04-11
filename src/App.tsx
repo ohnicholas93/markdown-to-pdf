@@ -90,7 +90,7 @@ Turn raw markdown into a polished PDF without leaving the browser.
 
 - [x] Paste or write markdown
 - [x] Tweak typography and page chrome
-- [x] Print or save the rendered PDF
+- [ ] Print or save the rendered PDF
 
 ### LaTeX support
 
@@ -234,7 +234,9 @@ const AlignmentOptionIcon = ({
   )
 }
 
-function AlignmentSelector<OptionValue extends string>({
+function AlignmentSelector<
+  OptionValue extends keyof typeof BODY_TEXT_ALIGNMENTS | HeadingTextAlignment,
+>({
   ariaLabel,
   value,
   onChange,
@@ -637,7 +639,7 @@ function App() {
   const [imageNotice, setImageNotice] = useState<NoticeState | null>(null)
   const [imageAssets, setImageAssets] = useState<ImageAsset[]>(() => readStoredImageAssets())
   const [imagePathDrafts, setImagePathDrafts] = useState<Record<string, string>>({})
-  const [isImageSidebarOpen, setIsImageSidebarOpen] = useState(true)
+  const [isImageSidebarOpen, setIsImageSidebarOpen] = useState(false)
   const workspaceRef = useRef<HTMLDivElement | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
   const pagedPreviewRef = useRef<HTMLDivElement | null>(null)
@@ -1441,7 +1443,7 @@ function App() {
                     Local assets
                   </h2>
                   <p className="mt-1 text-sm text-[var(--chrome-muted)]">
-                    Stored in this browser and resolved by path, like <code>assets/diagram.png</code>.
+                    All assets are stored locally in your browser. Refer with paths like <code>assets/diagram.png</code>.
                   </p>
                 </div>
                 <button
@@ -1471,7 +1473,7 @@ function App() {
                   {formatFileSize(totalImageBytes)}
                 </span>
                 <button
-                  className="rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-sm font-semibold transition hover:border-white/20 hover:bg-white/[0.08]"
+                  className="rounded-full border border-white/10 bg-white/[0.04] px-4 py-1 text-sm font-semibold transition hover:border-white/20 hover:bg-white/[0.08]"
                   type="button"
                   onClick={() => imageInputRef.current?.click()}
                 >
@@ -1553,7 +1555,7 @@ function App() {
                         </label>
                         <div className="mt-3 flex flex-wrap gap-2">
                           <button
-                            className="rounded-full border border-transparent bg-[var(--chrome-accent)]/85 px-3 py-1.5 text-xs font-semibold text-[#14110f] transition hover:bg-[var(--chrome-accent)]"
+                            className="rounded-full border border-transparent bg-[var(--chrome-accent)]/85 px-3 py-1.5 text-xs font-semibold text-[#08111c] transition hover:bg-[var(--chrome-accent)]"
                             type="button"
                             onClick={() => insertImageReference(asset)}
                           >
@@ -1571,7 +1573,7 @@ function App() {
                             Append path
                           </button>
                           <button
-                            className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-xs font-semibold transition hover:border-amber-300/30 hover:bg-amber-300/10"
+                            className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-xs font-semibold transition hover:border-[var(--chrome-accent)]/30 hover:bg-[var(--chrome-accent)]/10"
                             type="button"
                             onClick={() => handleDeleteImage(asset.id)}
                           >
@@ -1639,7 +1641,7 @@ function App() {
                 {isControlsExpanded ? 'Hide Settings' : 'Document Settings'}
               </button>
               <button
-                className="rounded-full border border-transparent bg-[var(--chrome-accent)]/90 px-5 py-2.5 font-semibold text-[#14110f] shadow-[0_10px_24px_rgba(201,115,66,0.22)] transition hover:-translate-y-0.5 hover:bg-[var(--chrome-accent)] disabled:cursor-not-allowed disabled:opacity-60 disabled:transform-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--chrome-accent)]"
+                className="rounded-full border border-transparent bg-[var(--chrome-accent)]/90 px-5 py-2.5 font-semibold text-[#08111c] shadow-[0_10px_24px_rgba(66,129,201,0.28)] transition hover:-translate-y-0.5 hover:bg-[var(--chrome-accent)] disabled:cursor-not-allowed disabled:opacity-60 disabled:transform-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--chrome-accent)]"
                 type="button"
                 onClick={handlePrint}
                 disabled={isPaginating || !!paginationError || pageCount === 0}
@@ -2150,7 +2152,7 @@ function App() {
                           key={key}
                           className={`rounded-full border px-4 py-1 !text-sm font-semibold tracking-[0.08em] transition ${
                             isActive
-                              ? 'border-transparent bg-[var(--chrome-accent)] text-[#14110f]'
+                              ? 'border-transparent bg-[var(--chrome-accent)] text-[#08111c]'
                               : 'border-white/10 bg-black/15 text-[var(--chrome-text)] hover:border-white/20 hover:bg-white/8'
                           }`}
                           type="button"
@@ -2266,7 +2268,7 @@ function App() {
                 <span className="rounded-full bg-white/[0.05] px-3 py-1.5 text-sm text-[var(--chrome-muted)]">
                   {characters} characters
                 </span>
-                <span className="rounded-full bg-[rgba(201,115,66,0.12)] px-3 py-1.5 text-sm text-[var(--chrome-muted)]">
+                <span className="rounded-full bg-[rgba(66,129,201,0.14)] px-3 py-1.5 text-sm text-[var(--chrome-muted)]">
                   {imageAssets.length} {imageAssets.length === 1 ? 'image' : 'images'}
                 </span>
               </div>
@@ -2314,7 +2316,7 @@ function App() {
           onPointerDown={() => setIsResizing(true)}
           onKeyDown={handleDividerKeyDown}
         >
-          <span className="block h-20 w-[0.3rem] rounded-full bg-[linear-gradient(180deg,rgba(201,115,66,0.1),rgba(201,115,66,0.9),rgba(201,115,66,0.1))]" />
+          <span className="block h-20 w-[0.3rem] rounded-full bg-[linear-gradient(180deg,rgba(66,129,201,0.1),rgba(66,129,201,0.9),rgba(66,129,201,0.1))]" />
         </div>
 
         <section className="preview-pane flex min-h-[32rem] min-w-0 flex-1 flex-col overflow-hidden rounded-[1.4rem] border border-white/10 bg-[rgba(8,11,15,0.72)] backdrop-blur-xl lg:min-h-0 lg:rounded-l-none s print:min-h-0 print:rounded-none print:border-0 print:bg-transparent">
@@ -2339,7 +2341,7 @@ function App() {
             </div>
           </div>
 
-          <div className="preview-stage relative min-h-0 overflow-auto bg-[radial-gradient(circle_at_top,rgba(201,115,66,0.1),transparent_38%),linear-gradient(180deg,rgba(255,255,255,0.02),rgba(255,255,255,0))] p-4 sm:p-6 print:overflow-visible print:bg-transparent print:p-0">
+          <div className="preview-stage relative min-h-0 overflow-auto bg-[radial-gradient(circle_at_top,rgba(66,129,201,0.12),transparent_38%),linear-gradient(180deg,rgba(255,255,255,0.02),rgba(255,255,255,0))] p-4 sm:p-6 print:overflow-visible print:bg-transparent print:p-0">
             {paginationError ? (
               <div className="pointer-events-none absolute inset-x-4 top-4 z-[1] rounded-2xl border border-amber-300/25 bg-amber-400/12 px-4 py-3 text-sm text-amber-100 shadow-[0_10px_30px_rgba(0,0,0,0.22)] print:hidden sm:inset-x-6">
                 {paginationError} Reload the page to retry the paged renderer.

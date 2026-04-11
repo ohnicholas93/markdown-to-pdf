@@ -28,7 +28,7 @@ button:not([disabled]) {
 .editor-input::-webkit-scrollbar-thumb,
 .preview-stage::-webkit-scrollbar-thumb {
   background:
-    linear-gradient(180deg, rgba(232, 155, 98, 0.95), rgba(201, 115, 66, 0.82));
+    linear-gradient(180deg, rgba(108, 166, 230, 0.95), rgba(66, 129, 201, 0.82));
   border: 2px solid rgba(7, 10, 14, 0.72);
   border-radius: 999px;
 }
@@ -36,7 +36,7 @@ button:not([disabled]) {
 .editor-input::-webkit-scrollbar-thumb:hover,
 .preview-stage::-webkit-scrollbar-thumb:hover {
   background:
-    linear-gradient(180deg, rgba(241, 176, 126, 0.98), rgba(214, 129, 82, 0.9));
+    linear-gradient(180deg, rgba(134, 186, 241, 0.98), rgba(85, 145, 215, 0.9));
 }
 
 .editor-input::-webkit-scrollbar-corner,
@@ -314,8 +314,8 @@ button:not([disabled]) {
   overflow: auto;
   padding: 1rem 1.1rem;
   border-radius: 1rem;
-  background: #201b19;
-  color: #f7f1e3;
+  background: #161d28;
+  color: #edf4ff;
   white-space: pre-wrap;
 }
 
@@ -327,21 +327,50 @@ button:not([disabled]) {
 
 .markdown-body table {
   width: 100%;
-  border-collapse: collapse;
-  overflow: hidden;
+  border-collapse: separate;
+  border-spacing: 0;
   border-radius: 1rem;
 }
 
 .markdown-body th,
 .markdown-body td {
   padding: 0.75rem 0.85rem;
-  border: 1px solid color-mix(in srgb, var(--page-text) 12%, white 72%);
+  border-right: 1px solid color-mix(in srgb, var(--page-text) 12%, white 72%);
+  border-bottom: 1px solid color-mix(in srgb, var(--page-text) 12%, white 72%);
   text-align: left;
   vertical-align: top;
 }
 
 .markdown-body th {
   background: color-mix(in srgb, var(--page-accent) 12%, white 72%);
+}
+
+.markdown-body tr > :first-child {
+  border-left: 1px solid color-mix(in srgb, var(--page-text) 12%, white 72%);
+}
+
+.markdown-body thead tr:first-child > * {
+  border-top: 1px solid color-mix(in srgb, var(--page-text) 12%, white 72%);
+}
+
+.markdown-body tbody tr:last-child > * {
+  border-bottom: 1px solid color-mix(in srgb, var(--page-text) 12%, white 72%);
+}
+
+.markdown-body thead tr:first-child > :first-child {
+  border-top-left-radius: 1rem;
+}
+
+.markdown-body thead tr:first-child > :last-child {
+  border-top-right-radius: 1rem;
+}
+
+.markdown-body tbody tr:last-child > :first-child {
+  border-bottom-left-radius: 1rem;
+}
+
+.markdown-body tbody tr:last-child > :last-child {
+  border-bottom-right-radius: 1rem;
 }
 
 .markdown-body mjx-container {

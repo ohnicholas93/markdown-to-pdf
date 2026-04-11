@@ -9,14 +9,14 @@
   --chrome-border: rgba(255, 255, 255, 0.1);
   --chrome-text: #f5f0e7;
   --chrome-muted: rgba(245, 240, 231, 0.68);
-  --chrome-accent: #c97342;
+  --chrome-accent: #4281c9;
   font-family: var(--font-body);
   line-height: 1.5;
   font-weight: 400;
   color: var(--chrome-text);
   background:
-    radial-gradient(circle at top left, rgba(201, 115, 66, 0.17), transparent 24%),
-    radial-gradient(circle at bottom right, rgba(128, 170, 175, 0.16), transparent 26%),
+    radial-gradient(circle at top left, rgba(66, 129, 201, 0.2), transparent 24%),
+    radial-gradient(circle at bottom right, rgba(92, 155, 222, 0.16), transparent 26%),
     var(--chrome-bg);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
@@ -78,5 +78,5 @@ a {
 }
 
 ::selection {
-  background: rgba(201, 115, 66, 0.35);
+  background: rgba(66, 129, 201, 0.35);
 }
