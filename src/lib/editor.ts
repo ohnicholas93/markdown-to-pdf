@@ -1422,6 +1422,8 @@ export const buildPagedDocumentCss = ({
   background: color-mix(in srgb, ${style.accent} 10%, white 72%);
   padding: 0.12rem 0.32rem;
   border-radius: 0.35rem;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .document-root .markdown-body pre {
@@ -1432,6 +1434,7 @@ export const buildPagedDocumentCss = ({
   color: #edf4ff;
   break-inside: avoid;
   white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 .document-root .markdown-body pre code {
@@ -1439,10 +1442,13 @@ export const buildPagedDocumentCss = ({
   color: inherit;
   padding: 0;
   white-space: inherit;
+  word-break: normal;
 }
 
 .document-root .markdown-body table {
   width: 100%;
+  max-width: 100%;
+  table-layout: fixed;
   border-collapse: separate;
   border-spacing: 0;
   border-radius: 1rem;
@@ -1466,6 +1472,8 @@ export const buildPagedDocumentCss = ({
   border-bottom: 1px solid color-mix(in srgb, ${style.text} 12%, white 72%);
   text-align: left;
   vertical-align: top;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .document-root .markdown-body th {

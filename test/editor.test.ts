@@ -92,6 +92,9 @@ describe('editor helpers', () => {
     expect(css).toContain('.document-root .markdown-body img {\n  display: block;')
     expect(css).toContain('.document-root .markdown-body figcaption {')
     expect(css).toContain('.document-root .markdown-body .image-placeholder__frame {')
+    expect(css).toContain('.document-root .markdown-body table {\n  width: 100%;\n  max-width: 100%;\n  table-layout: fixed;')
+    expect(css).toContain('overflow-wrap: anywhere;')
+    expect(css).toContain('word-break: break-word;')
     expect(css).not.toContain(
       '.document-root .markdown-body li {\n  text-align: left;\n  text-align-last: left;\n  break-inside: avoid;',
     )
