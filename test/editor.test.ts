@@ -93,8 +93,17 @@ describe('editor helpers', () => {
     expect(css).toContain('.document-root .markdown-body figcaption {')
     expect(css).toContain('.document-root .markdown-body .image-placeholder__frame {')
     expect(css).toContain('.document-root .markdown-body table {\n  width: 100%;\n  max-width: 100%;\n  table-layout: fixed;')
+    expect(css).toContain('border-collapse: collapse;')
+    expect(css).toContain('border-radius: 0;')
+    expect(css).toContain('--table-cell-vertical-padding: 0.35rem;')
+    expect(css).toContain('--table-cell-horizontal-padding: 0.6rem;')
+    expect(css).toContain(
+      'padding: var(--table-cell-vertical-padding) var(--table-cell-horizontal-padding);',
+    )
     expect(css).toContain('overflow-wrap: anywhere;')
     expect(css).toContain('word-break: break-word;')
+    expect(css).not.toContain('.document-root .markdown-body tbody tr:last-child > :first-child')
+    expect(css).not.toContain('.document-root .markdown-body tbody tr:last-child > *')
     expect(css).not.toContain(
       '.document-root .markdown-body li {\n  text-align: left;\n  text-align-last: left;\n  break-inside: avoid;',
     )
@@ -168,6 +177,8 @@ describe('editor helpers', () => {
         headingBaseSize: 30,
         lineHeight: 1.9,
         paragraphSpacing: 1.4,
+        tableCellVerticalPaddingRem: 1.1,
+        tableCellHorizontalPaddingRem: 1.25,
       },
       'noir',
     )
@@ -176,6 +187,8 @@ describe('editor helpers', () => {
     expect(next.headingBaseSize).toBe(30)
     expect(next.lineHeight).toBe(1.9)
     expect(next.paragraphSpacing).toBe(1.4)
+    expect(next.tableCellVerticalPaddingRem).toBe(1.1)
+    expect(next.tableCellHorizontalPaddingRem).toBe(1.25)
     expect(next.background).toBe('#191613')
     expect(next.text).toBe('#f5eadc')
     expect(next.accent).toBe('#f2a65a')
@@ -189,6 +202,10 @@ describe('editor helpers', () => {
     expect(DEFAULT_STYLE.headingAlignments.h6).toBe('left')
     expect(DEFAULT_STYLE.displayMathAlignment).toBe('center')
     expect(DEFAULT_STYLE.bodyAlignment).toBe('left')
+    expect(DEFAULT_STYLE.bodyFontSize).toBe(14)
+    expect(DEFAULT_STYLE.headingBaseSize).toBe(14)
+    expect(DEFAULT_STYLE.tableCellVerticalPaddingRem).toBe(0.35)
+    expect(DEFAULT_STYLE.tableCellHorizontalPaddingRem).toBe(0.6)
     expect(DEFAULT_STYLE.background).toBe('#ffffff')
     expect(DEFAULT_STYLE.text).toBe('#111111')
     expect(DEFAULT_STYLE.accent).toBe('#111111')
@@ -218,6 +235,28 @@ describe('editor helpers', () => {
     expect(parsed.style.headingAlignments.h2).toBe(DEFAULT_STYLE.headingAlignments.h2)
     expect(parsed.style.displayMathAlignment).toBe(DEFAULT_STYLE.displayMathAlignment)
     expect(parsed.style.bodyAlignment).toBe(DEFAULT_STYLE.bodyAlignment)
+  })
+
+  test('maps legacy table cell padding scale to direct padding values', () => {
+    const parsed = parseStylesetState(
+      JSON.stringify({
+        version: 1,
+        themePreset: 'classic',
+        pagePreset: 'a4',
+        horizontalMarginMm: 16,
+        verticalMarginMm: 16,
+        style: {
+          ...DEFAULT_STYLE,
+          tableCellVerticalPaddingRem: undefined,
+          tableCellHorizontalPaddingRem: undefined,
+          tableCellPaddingScale: 1.5,
+        },
+        pageChrome: DEFAULT_PAGE_CHROME,
+      }),
+    )
+
+    expect(parsed.style.tableCellVerticalPaddingRem).toBeCloseTo(0.525)
+    expect(parsed.style.tableCellHorizontalPaddingRem).toBeCloseTo(0.9)
   })
 
   test('maps legacy single heading alignment values across all heading levels', () => {

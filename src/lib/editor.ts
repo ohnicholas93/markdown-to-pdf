@@ -193,6 +193,10 @@ export type MarkdownActionKey = (typeof MARKDOWN_ACTIONS)[number]['key']
 export const MIN_CHROME_FONT_SIZE_PT = 7
 export const MAX_CHROME_FONT_SIZE_PT = 16
 export const DEFAULT_CHROME_FONT_SIZE_PT = 9
+export const MIN_TABLE_CELL_PADDING_REM = 0
+export const MAX_TABLE_CELL_PADDING_REM = 2
+export const DEFAULT_TABLE_CELL_VERTICAL_PADDING_REM = 0.35
+export const DEFAULT_TABLE_CELL_HORIZONTAL_PADDING_REM = 0.6
 
 export type HeadingAlignmentState = Record<HeadingAlignmentKey, HeadingTextAlignment>
 
@@ -207,6 +211,8 @@ export type StyleState = {
   headingBaseSize: number
   lineHeight: number
   paragraphSpacing: number
+  tableCellVerticalPaddingRem: number
+  tableCellHorizontalPaddingRem: number
   letterSpacing: number
   background: string
   text: string
@@ -250,10 +256,12 @@ export const DEFAULT_STYLE: StyleState = {
   },
   displayMathAlignment: 'center',
   bodyAlignment: 'left',
-  bodyFontSize: 16,
-  headingBaseSize: 22,
+  bodyFontSize: 14,
+  headingBaseSize: 14,
   lineHeight: 1.65,
   paragraphSpacing: 1.1,
+  tableCellVerticalPaddingRem: DEFAULT_TABLE_CELL_VERTICAL_PADDING_REM,
+  tableCellHorizontalPaddingRem: DEFAULT_TABLE_CELL_HORIZONTAL_PADDING_REM,
   letterSpacing: 0,
   background: '#ffffff',
   text: '#111111',
@@ -926,14 +934,14 @@ export const parseStylesetState = (input: string): StylesetState => {
         : DEFAULT_STYLE.bodyAlignment,
       bodyFontSize: clamp(
         isFiniteNumber(style.bodyFontSize) ? style.bodyFontSize : DEFAULT_STYLE.bodyFontSize,
-        13,
+        8,
         24,
       ),
       headingBaseSize: clamp(
         isFiniteNumber(style.headingBaseSize)
           ? style.headingBaseSize
           : DEFAULT_STYLE.headingBaseSize,
-        18,
+        12,
         36,
       ),
       lineHeight: clamp(
@@ -947,6 +955,24 @@ export const parseStylesetState = (input: string): StylesetState => {
           : DEFAULT_STYLE.paragraphSpacing,
         0.7,
         1.7,
+      ),
+      tableCellVerticalPaddingRem: clamp(
+        isFiniteNumber(style.tableCellVerticalPaddingRem)
+          ? style.tableCellVerticalPaddingRem
+          : isFiniteNumber(style.tableCellPaddingScale)
+            ? DEFAULT_TABLE_CELL_VERTICAL_PADDING_REM * style.tableCellPaddingScale
+            : DEFAULT_STYLE.tableCellVerticalPaddingRem,
+        MIN_TABLE_CELL_PADDING_REM,
+        MAX_TABLE_CELL_PADDING_REM,
+      ),
+      tableCellHorizontalPaddingRem: clamp(
+        isFiniteNumber(style.tableCellHorizontalPaddingRem)
+          ? style.tableCellHorizontalPaddingRem
+          : isFiniteNumber(style.tableCellPaddingScale)
+            ? DEFAULT_TABLE_CELL_HORIZONTAL_PADDING_REM * style.tableCellPaddingScale
+            : DEFAULT_STYLE.tableCellHorizontalPaddingRem,
+        MIN_TABLE_CELL_PADDING_REM,
+        MAX_TABLE_CELL_PADDING_REM,
       ),
       letterSpacing: clamp(
         isFiniteNumber(style.letterSpacing) ? style.letterSpacing : DEFAULT_STYLE.letterSpacing,
@@ -1227,6 +1253,8 @@ export const buildPagedDocumentCss = ({
   font-size: ${style.bodyFontSize}px;
   line-height: ${style.lineHeight};
   letter-spacing: ${style.letterSpacing}em;
+  --table-cell-vertical-padding: ${style.tableCellVerticalPaddingRem}rem;
+  --table-cell-horizontal-padding: ${style.tableCellHorizontalPaddingRem}rem;
 }
 
 .document-root .markdown-body > :first-child {
@@ -1449,9 +1477,9 @@ export const buildPagedDocumentCss = ({
   width: 100%;
   max-width: 100%;
   table-layout: fixed;
-  border-collapse: separate;
+  border-collapse: collapse;
   border-spacing: 0;
-  border-radius: 1rem;
+  border-radius: 0;
   break-inside: auto;
 }
 
@@ -1467,7 +1495,8 @@ export const buildPagedDocumentCss = ({
 
 .document-root .markdown-body th,
 .document-root .markdown-body td {
-  padding: 0.75rem 0.85rem;
+  padding: var(--table-cell-vertical-padding) var(--table-cell-horizontal-padding);
+  border-top: 1px solid color-mix(in srgb, ${style.text} 12%, white 72%);
   border-right: 1px solid color-mix(in srgb, ${style.text} 12%, white 72%);
   border-bottom: 1px solid color-mix(in srgb, ${style.text} 12%, white 72%);
   text-align: left;
@@ -1482,30 +1511,6 @@ export const buildPagedDocumentCss = ({
 
 .document-root .markdown-body tr > :first-child {
   border-left: 1px solid color-mix(in srgb, ${style.text} 12%, white 72%);
-}
-
-.document-root .markdown-body thead tr:first-child > * {
-  border-top: 1px solid color-mix(in srgb, ${style.text} 12%, white 72%);
-}
-
-.document-root .markdown-body tbody tr:last-child > * {
-  border-bottom: 1px solid color-mix(in srgb, ${style.text} 12%, white 72%);
-}
-
-.document-root .markdown-body thead tr:first-child > :first-child {
-  border-top-left-radius: 1rem;
-}
-
-.document-root .markdown-body thead tr:first-child > :last-child {
-  border-top-right-radius: 1rem;
-}
-
-.document-root .markdown-body tbody tr:last-child > :first-child {
-  border-bottom-left-radius: 1rem;
-}
-
-.document-root .markdown-body tbody tr:last-child > :last-child {
-  border-bottom-right-radius: 1rem;
 }
 
 .document-root .markdown-body mjx-container {

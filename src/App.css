@@ -84,6 +84,8 @@ button:not([disabled]) {
   font-size: var(--page-font-size);
   line-height: var(--page-line-height);
   letter-spacing: var(--page-letter-spacing);
+  --table-cell-vertical-padding: var(--page-table-cell-vertical-padding);
+  --table-cell-horizontal-padding: var(--page-table-cell-horizontal-padding);
 }
 
 .markdown-body > :first-child {
@@ -333,14 +335,15 @@ button:not([disabled]) {
   width: 100%;
   max-width: 100%;
   table-layout: fixed;
-  border-collapse: separate;
+  border-collapse: collapse;
   border-spacing: 0;
-  border-radius: 1rem;
+  border-radius: 0;
 }
 
 .markdown-body th,
 .markdown-body td {
-  padding: 0.75rem 0.85rem;
+  padding: var(--table-cell-vertical-padding) var(--table-cell-horizontal-padding);
+  border-top: 1px solid color-mix(in srgb, var(--page-text) 12%, white 72%);
   border-right: 1px solid color-mix(in srgb, var(--page-text) 12%, white 72%);
   border-bottom: 1px solid color-mix(in srgb, var(--page-text) 12%, white 72%);
   text-align: left;
@@ -355,30 +358,6 @@ button:not([disabled]) {
 
 .markdown-body tr > :first-child {
   border-left: 1px solid color-mix(in srgb, var(--page-text) 12%, white 72%);
-}
-
-.markdown-body thead tr:first-child > * {
-  border-top: 1px solid color-mix(in srgb, var(--page-text) 12%, white 72%);
-}
-
-.markdown-body tbody tr:last-child > * {
-  border-bottom: 1px solid color-mix(in srgb, var(--page-text) 12%, white 72%);
-}
-
-.markdown-body thead tr:first-child > :first-child {
-  border-top-left-radius: 1rem;
-}
-
-.markdown-body thead tr:first-child > :last-child {
-  border-top-right-radius: 1rem;
-}
-
-.markdown-body tbody tr:last-child > :first-child {
-  border-bottom-left-radius: 1rem;
-}
-
-.markdown-body tbody tr:last-child > :last-child {
-  border-bottom-right-radius: 1rem;
 }
 
 .markdown-body mjx-container {
